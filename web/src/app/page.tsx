@@ -96,7 +96,7 @@ export default function Home() {
           <span className="eyebrow">The pipeline · live</span>
           <span className="text-[11px] text-muted-foreground">{running ? "processing…" : started ? "run complete" : "idle"}</span>
         </div>
-        <div className="h-[calc(100%-42px)]"><PipelineGraph event={event} /></div>
+        <div className="h-[calc(100%-42px)]"><PipelineGraph event={event} running={running} /></div>
       </motion.section>
 
       {/* terminal + signal */}
