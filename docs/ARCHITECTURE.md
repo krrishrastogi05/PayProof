@@ -44,6 +44,8 @@
 
 ## Files (backend)
 `clock.py` · `eventlog.py` · `config.py` (policy loader) · `models.py` (shapes +
-state machine) · `rules.py` · `feasibility.py` · `ledger.py` · `pipeline.py`
-(authority spine) · `cli.py` (terminal renderer) · `sim/world.py` · `sim/truth.py`
-(agent-forbidden). Runner, scoreboard, reasoner, watcher land in Checkpoints C–D.
+state machine) · `watcher.py` · `reasoner.py` (the only Gemini caller) · `recall.py` ·
+`rules.py` · `feasibility.py` · `runner.py` · `scoreboard.py` · `ledger.py` ·
+`pipeline.py` (orchestration) · `evidence.py` (the measured claims) · `main.py`
+(FastAPI + SSE) · `cli.py` (terminal renderer) · `sim/world.py` · `sim/truth.py`
+(agent-forbidden). `frontend/index.html` is a pure function of the event stream.

@@ -27,18 +27,20 @@ def _now() -> str:
 
 
 def evaluate(proposal: Proposal, *, policy: Policy, world: World, log: EventLog,
-             conn: sqlite3.Connection, run_id: str) -> tuple[TestStatus, str, Feasibility | None]:
+             conn: sqlite3.Connection, run_id: str, proposed_by: str = "curated",
+             degraded: str | None = None) -> tuple[TestStatus, str, Feasibility | None]:
     """Emit cards for rules + feasibility and persist the outcome. Returns
     (status, test_id, feasibility) so an admitted test can then be run."""
     test_id = uuid.uuid4().hex[:8]
     log.append("PROPOSED", test_id=test_id, headline=proposal.what_changed,
-               slice=proposal.slice.label(), traffic_share=proposal.traffic_share, why=proposal.why)
+               slice=proposal.slice.label(), traffic_share=proposal.traffic_share,
+               why=proposal.why, proposed_by=proposed_by, degraded=degraded)
 
     row: dict = {
         "id": test_id, "run_id": run_id, "layer_id": proposal.test_kind.value,
         "headline": proposal.what_changed, "test_kind": proposal.test_kind.value,
         "slice_json": proposal.slice.model_dump_json(), "traffic_share": proposal.traffic_share,
-        "proposed_by": "hardcoded", "registered_at": _now(),
+        "proposed_by": proposed_by, "registered_at": _now(),
         "realized_loss_inr": 0.0, "cap_broken": 0,
     }
 
@@ -71,10 +73,25 @@ def evaluate(proposal: Proposal, *, policy: Policy, world: World, log: EventLog,
 
 
 def conduct(proposal: Proposal, *, policy: Policy, world: World, log: EventLog,
-            conn: sqlite3.Connection, run_id: str, clock: Clock) -> TestStatus:
+            conn: sqlite3.Connection, run_id: str, clock: Clock,
+            proposed_by: str = "curated", degraded: str | None = None) -> TestStatus:
     """Evaluate, and run it if it's admitted. The whole life of one proposal."""
-    status, test_id, feas = evaluate(proposal, policy=policy, world=world, log=log, conn=conn, run_id=run_id)
+    status, test_id, feas = evaluate(proposal, policy=policy, world=world, log=log,
+                                     conn=conn, run_id=run_id, proposed_by=proposed_by, degraded=degraded)
     if status is TestStatus.admitted and feas is not None:
         return run_test(proposal, feas, policy=policy, world=world, log=log,
                         conn=conn, test_id=test_id, clock=clock)
     return status
+
+
+def reason_and_conduct(flag, *, policy: Policy, world: World, log: EventLog,
+                       conn: sqlite3.Connection, run_id: str, clock: Clock) -> TestStatus:
+    """The live loop for one flagged slice: think (Gemini) → propose → conduct."""
+    from .reasoner import propose
+    from .recall import learnings, relevant_history
+    notes = relevant_history(conn, flag.slice) + learnings(conn)
+    log.append("THINKING", slice=flag.slice.label(), history=len(notes),
+               note=f"reading {len(notes)} prior result{'s' if len(notes) != 1 else ''} for this context…")
+    proposal, source, degraded = propose(flag, notes)
+    return conduct(proposal, policy=policy, world=world, log=log, conn=conn,
+                   run_id=run_id, clock=clock, proposed_by=source, degraded=degraded)

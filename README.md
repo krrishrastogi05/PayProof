@@ -12,14 +12,22 @@ Razorpay shipped Agent Studio; Optimizer already picks the gateway *behind* the 
 
 The safety model is borrowed from **clinical trials, not canary releases** — because a failed checkout is a lost order, and rolling back isn't free. Money at risk is capped in rupees *before* a test starts; stopping for harm needs far less evidence than promoting a winner; a separate monitor outranks the agent.
 
-## What runs today (Checkpoints A–B)
+## What runs today
 
-The deterministic spine and the two hardest-to-fake beats:
+The whole pipeline, end to end:
 
+- **Watcher** (`backend/watcher.py`) — flags a slice whose completion has slipped.
+- **Reasoner** (`backend/reasoner.py`) — the only file that talks to **Gemini**;
+  reads the flagged slice + ledger recall, returns one structured proposal, and
+  falls back to a local proposal (visibly degraded) if the model is unreachable.
 - **Rules engine** (`backend/rules.py`) — reads `policy.yaml`, allows or blocks with a reason. Highest test coverage in the repo.
 - **Feasibility gate** (`backend/feasibility.py`) — sample-size arithmetic + the spending cap, computed *before* anything runs. Declines tests it can't measure.
+- **Runner + scoreboard** (`backend/runner.py`, `scoreboard.py`) — hashed session
+  assignment, a sequential (mSPRT) test with lopsided promote/harm thresholds, the
+  split check, realized-loss accounting, and **the brake** (the cap is never exceeded).
 - **The simulator** (`backend/sim/`) with hidden ground truth the agent's code cannot import (enforced by a test).
-- **Event log + ledger** — every stage appends one line; the UI is a pure function of that stream (free replay).
+- **Event log + ledger + web UI** — every stage appends one line; the page is a pure
+  function of that stream (free replay).
 
 ```bash
 # from thaw/
@@ -31,12 +39,34 @@ python -m backend.cli replay runs/run_042.jsonl
 
 Sample output — the agent asks for 25% traffic (**blocked**, ceiling is 10%), comes back at 10% (**cap set: ₹18,862**), then proposes a test on a slice that gets 412 sessions/day and **declines it itself**: ~7,900 per group is 38 days, past the 14-day limit.
 
-## Roadmap to the full demo
+## Evidence (measured, not claimed)
 
-- **C** — runner (hashed assignment, layers), scoreboard (sequential test, lopsided thresholds, split check), the brake + realized-loss accounting.
-- **D** — Gemini reasoner (structured output only; never computes a number), ledger recall, degraded fallback. Reuses the buildathon's configured keys.
-- **E** — Next.js page, SSE card stream, money meter, replay mode.
-- **F** — the honesty run, cold-vs-experienced over 20 seeds, cap-violation count, prior-art table.
+Run it yourself: `python -m backend.evidence`.
+
+- **Peeking inflates false positives; the sequential test fixes it.** With both
+  options secretly identical and a look after every batch, naive re-checking of a
+  fixed-horizon p-value declares a winner on **38.8%** of runs; Thaw's sequential
+  (mSPRT) test, **2.5%**.
+- **The spending cap is never exceeded.** Across **80 tests over 20 seeds**,
+  `cap_broken = 0`.
+- **Experience pays.** Reading the ledger, the agent reaches the real win in
+  **1.0 test and ₹0 lost**, vs **3.0 tests and ₹2,878 lost** cold — it skips the
+  slices it already learned are harmful or a wash.
+
+## Live vs replay
+
+- **Replay** (`Start run`, or `python -m backend.cli`) — the curated, deterministic
+  demo. Effects are inflated so all six end-states fire in five minutes.
+- **Live** (the *Live · Gemini* toggle, or `python -m backend.cli live`) — really
+  calls Gemini for each flagged slice. At realistic effect sizes the model's own
+  proposals are **declined by the feasibility gate** (a 1-point change needs ~90
+  days at this traffic) — which is the honest point, shown, not hidden.
+
+## Status
+
+Checkpoints **A–D and F done, E working** (web UI). Beats 1–8 are demonstrable.
+Remaining polish: porting the vanilla page to the Next.js named in the spec, and
+the optional Razorpay test-mode event source.
 
 ## Submission mapping
 

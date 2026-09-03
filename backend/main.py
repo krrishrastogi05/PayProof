@@ -15,7 +15,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
-from .cli import run_demo
+from .cli import run_demo, run_live
 from .eventlog import read_log
 from .ledger import all_tests, connect
 
@@ -29,9 +29,10 @@ def index() -> HTMLResponse:
 
 
 @app.get("/stream")
-async def stream(seed: int = 42):
-    """Generate a deterministic run, then replay its cards with demo pacing."""
-    path = run_demo(seed=seed, speed=10_000.0)
+async def stream(seed: int = 42, live: int = 0):
+    """Generate a run (curated replay, or live via Gemini), then stream its cards.
+    The live run really calls Gemini; the curated replay is the guaranteed demo."""
+    path = await asyncio.to_thread(run_live if live else run_demo, seed, 10_000.0)
 
     fast = {"RUNNING"}
     weighty = {"BRAKE_PULLED", "KEPT", "NO_DIFFERENCE", "REVERTED", "LEARNED"}

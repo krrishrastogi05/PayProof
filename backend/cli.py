@@ -18,13 +18,15 @@ from .config import load_policy
 from .eventlog import EventLog, read_log
 from .ledger import connect
 from .models import CustomerType, Device, Proposal, Slice, TestKind
-from .pipeline import conduct
+from .pipeline import conduct, reason_and_conduct
 from .sim.world import World
+from .watcher import flagged_slices
 
 C = {"grey": "\033[90m", "red": "\033[91m", "amber": "\033[93m", "blue": "\033[94m",
      "green": "\033[92m", "violet": "\033[95m", "cyan": "\033[96m", "bold": "\033[1m", "off": "\033[0m"}
 
 CARD = {
+    "THINKING": ("✦", "violet", "THINKING"),
     "PROPOSED": ("✎", "violet", "PROPOSED"),
     "BLOCKED": ("✕", "red", "BLOCKED"),
     "TOO_SMALL": ("⊘", "amber", "TOO SMALL TO MEASURE"),
@@ -94,6 +96,27 @@ def run_demo(seed: int = 42, speed: float = 10_000.0) -> str:
     return str(log.path)
 
 
+def run_live(seed: int = 42, speed: float = 10_000.0) -> str:
+    """The real loop: the watcher flags slices, Gemini proposes, the gates decide."""
+    policy = load_policy()
+    clock = SimClock(speed=speed)
+    run_id = f"live_{seed:03d}"
+    from .eventlog import RUNS_DIR
+    (RUNS_DIR / f"{run_id}.jsonl").unlink(missing_ok=True)
+    log = EventLog(run_id, clock)
+    conn = connect()
+    world = World(seed=seed)
+    flags = flagged_slices(world)[:4]
+    log.append("WATCHING", slice=flags[0].slice.label(),
+               note=f"completion {flags[0].recent*100:.1f}% vs usual {flags[0].baseline*100:.1f}% · settings set long ago, never re-tested")
+    for f in flags:
+        clock.advance(3600)
+        reason_and_conduct(f, policy=policy, world=world, log=log, conn=conn, run_id=run_id, clock=clock)
+    log.close()
+    conn.close()
+    return str(log.path)
+
+
 def render(path: str) -> None:
     print(f"\n{C['bold']}THAW{C['off']}  Acme Electronics   mode: CANARY   ● watching\n")
     for e in read_log(path):
@@ -105,8 +128,12 @@ def render(path: str) -> None:
             continue
         sym, color, title = CARD[kind]
         print(f"{C[color]}{C['bold']}{sym} {title}{C['off']}")
-        if kind == "PROPOSED":
-            print(f"  {e['headline']}  ·  {e['slice']}  ·  asked {int(e['traffic_share']*100)}% of traffic")
+        if kind == "THINKING":
+            print(f"  {C['grey']}{e.get('note','')}{C['off']}")
+        elif kind == "PROPOSED":
+            by = e.get("proposed_by", "curated")
+            tag = f"  {C['violet']}[Gemini]{C['off']}" if by == "gemini" else f"  {C['grey']}[{by}]{C['off']}"
+            print(f"  {e['headline']}{tag}\n  {C['grey']}{e['slice']} · asked {int(e['traffic_share']*100)}% of traffic{('  · '+e['degraded']) if e.get('degraded') else ''}{C['off']}")
         elif kind == "BLOCKED":
             print(f"  {C['red']}{e['reason']}{C['off']}")
         elif kind in ("TOO_SMALL", "CAP_SET", "KEPT", "NO_DIFFERENCE", "REVERTED"):
@@ -129,9 +156,10 @@ def main() -> None:
     if len(sys.argv) >= 3 and sys.argv[1] == "replay":
         render(sys.argv[2])
         return
-    path = run_demo()
+    live = len(sys.argv) >= 2 and sys.argv[1] == "live"
+    path = run_live() if live else run_demo()
     render(path)
-    print(f"{C['grey']}log: {path}{C['off']}")
+    print(f"{C['grey']}log: {path}{('  (live · Gemini)' if live else '  (curated replay)')}{C['off']}")
 
 
 if __name__ == "__main__":

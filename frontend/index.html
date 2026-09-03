@@ -55,6 +55,10 @@ main{max-width:1180px;margin:0 auto;padding:18px 20px;display:grid;
 .card .body{margin-top:7px;line-height:1.45}
 .card .sub{margin-top:4px;color:hsl(var(--muted-foreground));font-size:12.5px}
 .reason{color:hsl(var(--state-blocked));font-weight:500}
+.tag{display:inline-block;margin-left:7px;padding:1px 8px;border-radius:999px;font-size:10px;font-weight:600;
+  background:hsl(var(--muted));color:hsl(var(--muted-foreground));vertical-align:middle;text-transform:none;letter-spacing:0}
+.tag.gemini{background:hsl(var(--state-thinking)/.14);color:hsl(var(--state-thinking))}
+.dots .dot{font-weight:900}
 .card-in{animation:slide-in .34s cubic-bezier(.16,1,.3,1) both}
 .card-stamp{animation:stamp .17s cubic-bezier(.2,.9,.2,1) both}
 
@@ -143,13 +147,19 @@ footer{max-width:1180px;margin:8px auto 40px;padding:12px 20px}
   <div class="ledger">
     <span class="col-title" style="margin:0">Ledger</span>
     <span id="ledgerSummary" class="muted">no runs yet</span>
-    <button class="startbtn" id="start">Start run</button>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:14px">
+      <label title="Proposals come from Gemini live, instead of the curated replay"
+        style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:hsl(var(--muted-foreground));cursor:pointer">
+        <input type="checkbox" id="liveToggle"> Live · Gemini
+      </label>
+      <button class="startbtn" id="start" style="margin-left:0">Start run</button>
+    </div>
   </div>
 </footer>
 
 <script>
 const $ = (id) => document.getElementById(id);
-const STATE = { watching:"--state-watching", proposed:"--state-thinking", blocked:"--state-blocked",
+const STATE = { watching:"--state-watching", thinking:"--state-thinking", proposed:"--state-thinking", blocked:"--state-blocked",
   toosmall:"--state-toosmall", capset:"--state-allowed", running:"--state-running",
   braked:"--state-braked", reverted:"--state-toosmall", kept:"--state-kept",
   nodiff:"--state-nodiff", learned:"--state-thinking" };
@@ -172,9 +182,17 @@ function render(e){
   $("simClock").textContent = fmtSim(e.sim_ts||0);
   if(e.kind==="WATCHING")
     card("watching","card-in","●","WATCHING", `${e.slice}<div class="sub">${e.note}</div>`);
-  else if(e.kind==="PROPOSED")
-    card("proposed","card-in","✦","PROPOSED",
-      `${e.headline}<div class="sub">${e.slice} · asked <span class="num">${Math.round(e.traffic_share*100)}%</span> of traffic</div>`);
+  else if(e.kind==="THINKING")
+    card("thinking","card-in","✦",`THINKING <span class="dots"><span class="dot">·</span><span class="dot">·</span><span class="dot">·</span></span>`,
+      `<span class="muted">${e.note||"reading the ledger…"}</span>`);
+  else if(e.kind==="PROPOSED"){
+    const by = e.proposed_by||"curated";
+    const badge = by==="gemini" ? `<span class="tag gemini">Gemini</span>`
+      : by==="local" ? `<span class="tag">local fallback</span>` : "";
+    const deg = e.degraded ? `<div class="sub" style="color:hsl(var(--state-toosmall))">${e.degraded}</div>` : "";
+    card("proposed","card-in","✎",`PROPOSED ${badge}`,
+      `${e.headline}<div class="sub">${e.slice} · asked <span class="num">${Math.round(e.traffic_share*100)}%</span> of traffic</div>${deg}`);
+  }
   else if(e.kind==="BLOCKED")
     card("blocked","card-stamp","✕","BLOCKED", `<span class="reason">${e.reason}</span>`);
   else if(e.kind==="TOO_SMALL")
@@ -226,11 +244,12 @@ function updateRun(e){
 }
 
 function start(){
+  const live = $("liveToggle").checked;
   $("start").disabled = true;
-  $("start").textContent = "Running…";
+  $("start").textContent = live ? "Asking Gemini…" : "Running…";
   $("placeholder")?.remove();
-  $("stream").innerHTML = "";
-  const es = new EventSource("/stream");
+  $("stream").innerHTML = ""; runShown = null;
+  const es = new EventSource("/stream" + (live ? "?live=1" : ""));
   es.onmessage = (m)=>{ try{ render(JSON.parse(m.data)); }catch(_){} };
   es.addEventListener("done", ()=>{ es.close(); finish(); });
   es.onerror = ()=>{ es.close(); finish(); };

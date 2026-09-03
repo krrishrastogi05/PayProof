@@ -3,6 +3,34 @@
 The buildathon judges failure recovery explicitly. These are actual things that
 broke and how they were fixed, newest first.
 
+## 2026-09-04 — Checkpoint D + F (Gemini, and the evidence)
+
+**Built:** the watcher (flags slipped slices), ledger recall, and the Gemini
+reasoner — the only file that talks to the model, with a visible local fallback.
+Wired a live mode into the CLI and the web UI (a *Live · Gemini* toggle). Plus the
+evidence harness: false-positive inflation, the cap-violation count, and
+cold-vs-experienced. 22 tests green.
+
+**Broke: the reasoner always fell back to local, even though the key was valid.** A
+direct probe returned 200 from Gemini, but `reasoner.propose` reported "model
+unavailable" every time. Cause: the module read `GEMINI_API_KEY` at import time, but
+nothing had loaded `.env` in that path (only `config.py` calls `load_dotenv`). Fix:
+import `config` for its load side-effect and read the key lazily inside the call.
+
+**Broke: `requests` wasn't installed** in the environment I was running against.
+Rather than add a dependency and a pip step, switched the Gemini call to stdlib
+`urllib` — no install, works everywhere.
+
+**Wrong turn: expected the key to be a Bearer token.** The `AQ.A…` prefix looked
+like an OAuth token, so I tried `Authorization: Bearer` first — 401. It's an API
+key: `x-goog-api-key` returns 200. Kept only that header.
+
+**Finding, not a bug: live Gemini declines everything — and that's the point.** With
+the model choosing realistic 1–2pp effects to detect, the feasibility gate refuses
+every proposal (a 1-point change needs ~90 days at this traffic). This is the
+honest rigour signal from the PRD, shown on screen — so the demo keeps the curated
+(inflated-effect) replay as the guaranteed path and offers live Gemini alongside it.
+
 ## 2026-09-03 — Checkpoint C (runner, scoreboard, brake)
 
 **Built:** hashed session assignment + layers, the sequential (mSPRT) scoreboard
