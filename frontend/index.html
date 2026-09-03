@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Thaw — Acme Electronics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --background:210 40% 99%; --foreground:222 47% 11%; --card:0 0% 100%;
+  --primary:212 100% 60%; --muted:214 32% 96%; --muted-foreground:215 16% 47%;
+  --accent:212 100% 96%; --accent-foreground:212 90% 38%; --border:214 25% 90%;
+  --state-watching:215 16% 47%; --state-thinking:262 70% 60%; --state-allowed:212 100% 60%;
+  --state-blocked:0 78% 55%; --state-toosmall:38 92% 50%; --state-running:199 89% 48%;
+  --state-braked:0 84% 48%; --state-kept:142 71% 40%;
+  --radius:10px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:hsl(var(--background));color:hsl(var(--foreground));
+  font-family:"Geist",system-ui,sans-serif;font-size:14px;-webkit-font-smoothing:antialiased}
+.num{font-family:"Geist Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.muted{color:hsl(var(--muted-foreground))}
+
+/* header */
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:16px;
+  height:56px;padding:0 20px;background:hsl(var(--card)/.85);backdrop-filter:blur(12px);
+  border-bottom:1px solid hsl(var(--border))}
+.brand{font-weight:700;letter-spacing:-.02em;font-size:16px}
+.brand b{color:hsl(var(--primary))}
+.merchant{color:hsl(var(--muted-foreground));font-size:13px}
+.clocks{margin-left:auto;display:flex;gap:18px;align-items:center;font-size:12px}
+.clocks .lab{color:hsl(var(--muted-foreground));margin-right:6px}
+.mode{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;
+  background:hsl(var(--accent));color:hsl(var(--accent-foreground));font-size:11px;font-weight:600;
+  text-transform:uppercase;letter-spacing:.06em;border:1px solid hsl(var(--primary)/.2)}
+.live{width:7px;height:7px;border-radius:50%;background:hsl(var(--state-kept))}
+.dot{animation:pulse-dot 1.3s ease-in-out infinite}
+
+/* layout */
+main{max-width:1180px;margin:0 auto;padding:18px 20px;display:grid;
+  grid-template-columns:1fr 340px;gap:16px;align-items:start}
+.col-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;
+  color:hsl(var(--muted-foreground));margin:2px 2px 10px}
+.stream{display:flex;flex-direction:column;gap:10px;min-height:60vh}
+.rail{display:flex;flex-direction:column;gap:14px;position:sticky;top:74px}
+
+/* cards */
+.card{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:var(--radius);
+  padding:14px 16px;border-left:3px solid hsl(var(--st));box-shadow:0 1px 2px hsl(222 47% 11% / .04)}
+.card .top{display:flex;align-items:center;gap:8px;font-weight:600;color:hsl(var(--st));font-size:12.5px;
+  text-transform:uppercase;letter-spacing:.05em}
+.card .glyph{font-size:13px}
+.card .body{margin-top:7px;line-height:1.45}
+.card .sub{margin-top:4px;color:hsl(var(--muted-foreground));font-size:12.5px}
+.reason{color:hsl(var(--state-blocked));font-weight:500}
+.card-in{animation:slide-in .34s cubic-bezier(.16,1,.3,1) both}
+.card-stamp{animation:stamp .17s cubic-bezier(.2,.9,.2,1) both}
+
+/* rail panels */
+.panel{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:var(--radius);padding:14px 16px}
+.panel h3{margin:0 0 10px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:hsl(var(--muted-foreground))}
+.big{font-size:22px;font-weight:600}
+.row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px}
+.meter{height:6px;border-radius:3px;background:hsl(var(--muted));overflow:hidden;margin-top:8px}
+.meter>span{display:block;height:100%;border-radius:3px;background:hsl(var(--primary));width:0;transition:width .5s ease-out,background-color .3s}
+.meter.hot>span{background:hsl(var(--state-braked))}
+.check{color:hsl(var(--state-kept));font-weight:600}
+.empty{color:hsl(var(--muted-foreground));font-size:13px;padding:6px 0}
+
+/* ledger footer */
+footer{max-width:1180px;margin:8px auto 40px;padding:12px 20px}
+.ledger{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:var(--radius);
+  padding:12px 16px;display:flex;gap:22px;align-items:center;font-size:13px}
+.ledger b{font-weight:600}
+.startbtn{margin-left:auto;background:hsl(var(--primary));color:#fff;border:none;border-radius:8px;
+  padding:8px 14px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer}
+.startbtn:disabled{opacity:.5;cursor:default}
+
+@keyframes slide-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes stamp{0%{opacity:0;transform:scale(1.06)}55%{opacity:1;transform:scale(.995)}100%{opacity:1;transform:scale(1)}}
+@keyframes pulse-dot{0%,100%{opacity:.28}50%{opacity:1}}
+@media(prefers-reduced-motion:reduce){.card-in,.card-stamp,.dot{animation:none}}
+@media(max-width:820px){main{grid-template-columns:1fr}.rail{position:static}}
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">THA<b>W</b></span>
+  <span class="merchant">Acme Electronics</span>
+  <div class="clocks">
+    <span><span class="lab">sim</span><span class="num" id="simClock">0d 0h</span></span>
+    <span><span class="lab">real</span><span class="num" id="realClock">0:00</span></span>
+    <span class="muted num">10,000×</span>
+    <span class="mode"><span class="live dot"></span> Canary · watching</span>
+  </div>
+</header>
+
+<main>
+  <section>
+    <div class="col-title">The stream</div>
+    <div class="stream" id="stream">
+      <div class="empty" id="placeholder">Press <b>Start run</b> to watch Thaw evaluate proposals.</div>
+    </div>
+  </section>
+  <aside class="rail">
+    <div class="panel">
+      <h3>Active test</h3>
+      <div id="activeTest" class="empty">No test running.</div>
+    </div>
+    <div class="panel">
+      <h3>Money at risk</h3>
+      <div class="row"><span class="num big" id="lossNow">₹0</span><span class="muted num" id="lossCap">/ ₹0</span></div>
+      <div class="meter" id="lossMeter"><span></span></div>
+      <div class="muted" style="font-size:12px;margin-top:8px">Capped in rupees before the test starts.</div>
+    </div>
+    <div class="panel">
+      <h3>Stop rules</h3>
+      <div class="row"><span>failures</span><span class="check" id="sr1">— armed</span></div>
+      <div class="row"><span>refunds</span><span class="check" id="sr2">— armed</span></div>
+      <div class="row"><span>latency</span><span class="check" id="sr3">— armed</span></div>
+      <div class="row"><span>split</span><span class="check" id="sr4">— armed</span></div>
+    </div>
+  </aside>
+</main>
+
+<footer>
+  <div class="ledger">
+    <span class="col-title" style="margin:0">Ledger</span>
+    <span id="ledgerSummary" class="muted">no runs yet</span>
+    <button class="startbtn" id="start">Start run</button>
+  </div>
+</footer>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const STATE = { watching:"--state-watching", proposed:"--state-thinking", blocked:"--state-blocked",
+  toosmall:"--state-toosmall", capset:"--state-allowed" };
+const t0 = Date.now();
+function fmtSim(s){ const d=Math.floor(s/86400), h=Math.floor((s%86400)/3600); return `${d}d ${h}h`; }
+function fmtReal(){ const s=Math.floor((Date.now()-t0)/1000); return `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`; }
+setInterval(()=>{ $("realClock").textContent = fmtReal(); }, 1000);
+
+function card(kind, cls, glyph, title, bodyHTML){
+  const el = document.createElement("div");
+  el.className = `card ${cls==="card-stamp"?"card-stamp":"card-in"}`;
+  el.style.setProperty("--st", `hsl(var(${STATE[kind]}))`);
+  el.innerHTML = `<div class="top"><span class="glyph">${glyph}</span>${title}</div><div class="body">${bodyHTML}</div>`;
+  $("stream").appendChild(el);
+  el.scrollIntoView({behavior:"smooth", block:"end"});
+}
+
+function render(e){
+  $("simClock").textContent = fmtSim(e.sim_ts||0);
+  if(e.kind==="WATCHING")
+    card("watching","card-in","●","WATCHING",
+      `${e.slice}<div class="sub">${e.note}</div>`);
+  else if(e.kind==="PROPOSED")
+    card("proposed","card-in","✦","PROPOSED",
+      `${e.headline}<div class="sub">${e.slice} · asked <span class="num">${Math.round(e.traffic_share*100)}%</span> of traffic</div>`);
+  else if(e.kind==="BLOCKED")
+    card("blocked","card-stamp","✕","BLOCKED", `<span class="reason">${e.reason}</span>`);
+  else if(e.kind==="TOO_SMALL")
+    card("toosmall","card-in","⊘","TOO SMALL TO MEASURE", `${e.note}`);
+  else if(e.kind==="CAP_SET"){
+    card("capset","card-in","₹","CAP SET · ADMITTED", `${e.note}`);
+    setActive(e);
+  }
+}
+
+function setActive(e){
+  $("activeTest").className = "";
+  $("activeTest").innerHTML = `<div style="font-weight:600">Admitted — ready to run</div>
+    <div class="sub muted" style="font-size:12.5px;margin-top:4px">${e.note}</div>`;
+  const cap = e.max_loss_inr||0;
+  $("lossCap").textContent = `/ ₹${cap.toLocaleString("en-IN")}`;
+  $("lossNow").textContent = `₹0`;
+  $("lossMeter").querySelector("span").style.width = "0%";
+  ["sr1","sr2","sr3","sr4"].forEach(id=>$(id).textContent="✓ armed");
+}
+
+function start(){
+  $("start").disabled = true;
+  $("start").textContent = "Running…";
+  $("placeholder")?.remove();
+  $("stream").innerHTML = "";
+  const es = new EventSource("/stream");
+  es.onmessage = (m)=>{ try{ render(JSON.parse(m.data)); }catch(_){} };
+  es.addEventListener("done", ()=>{ es.close(); finish(); });
+  es.onerror = ()=>{ es.close(); finish(); };
+}
+async function finish(){
+  $("start").disabled = false;
+  $("start").textContent = "Replay run";
+  try{
+    const rows = await (await fetch("/ledger")).json();
+    const n=rows.length, blocked=rows.filter(r=>r.status==="BLOCKED").length,
+      small=rows.filter(r=>r.status==="DECLINED_TOO_SMALL").length,
+      adm=rows.filter(r=>r.status==="ADMITTED").length;
+    $("ledgerSummary").innerHTML =
+      `<b>${n}</b> tests · <b>${adm}</b> admitted · <b>${blocked}</b> blocked · <b>${small}</b> too small to run`;
+  }catch(_){}
+}
+$("start").addEventListener("click", start);
+</script>
+</body>
+</html>
