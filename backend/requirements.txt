@@ -1,0 +1,9 @@
+# Thaw backend. Deliberately small — SQLite + stdlib do most of the work.
+pydantic>=2.6
+pyyaml>=6.0
+python-dotenv>=1.0
+fastapi>=0.110
+uvicorn>=0.29
+google-genai>=0.3          # Gemini (reasoner only)
+requests>=2.31             # Razorpay test-mode calls
+pytest>=8.0

@@ -1,0 +1,45 @@
+# The boundaries Thaw runs inside. Human-written, human-owned.
+# The agent READS this file and can never write it.
+#
+# Two layers of boundary:
+#   Layer 1 (never:)  — fixed forever. No history unlocks these.
+#   Layer 2 (limits:) — may loosen with evidence, but only a human edits the file.
+
+merchant: acme-electronics
+autonomy: canary                 # shadow | canary | proven
+
+limits:
+  max_traffic_share: 0.10
+  max_minutes: 20160             # 14 days of simulated time
+  max_loss_per_test_inr: 50000
+  max_loss_per_day_inr: 150000
+  max_tests_at_once: 2
+
+allowed_tests:
+  - payment_method_order
+  - retry_timing
+
+never:
+  - change_price
+  - change_amount
+  - duplicate_charge
+  - skip_authentication
+  - target_by_sensitive_trait
+
+only_include_orders:
+  min_inr: 1000
+  max_inr: 3000                  # tail risk excluded by construction, not by statistics
+
+brake:
+  failure_rate_rise_pp: 1.0
+  refund_rate_rise_pp: 0.5
+  latency_rise_ms: 200
+  harm_alpha: 0.30              # stop early on weak evidence
+
+promote:
+  alpha: 0.05                   # promote only on strong evidence
+  min_power: 0.80
+  require_range_excludes_zero: true
+
+discovery_budget:
+  max_promotions_per_10_tests: 3
