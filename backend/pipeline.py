@@ -61,7 +61,8 @@ def evaluate(proposal: Proposal, *, policy: Policy, world: World, log: EventLog,
 
     if not feas.admitted:
         log.append("TOO_SMALL", test_id=test_id, note=feas.note,
-                   needed_per_group=feas.needed_per_group, needed_days=feas.needed_days)
+                   needed_per_group=feas.needed_per_group, needed_days=feas.needed_days,
+                   max_days=feas.max_days, arrival_per_day=round(arrival))
         row["status"] = TestStatus.declined_too_small.value
         record_test(conn, row)
         return TestStatus.declined_too_small, test_id, feas

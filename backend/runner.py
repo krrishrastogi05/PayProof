@@ -120,14 +120,16 @@ def _finish(end, proposal, test_id, n, w, loss, cap, clock, log, conn, policy) -
         log.append("REVERTED", test_id=test_id, note="settings rolled back to UPI-first")
         log.append("LEARNED", test_id=test_id, claim=f"cards-first HURTS {proposal.slice.label()} — do not retry")
     elif end == TestStatus.found_winner:
-        log.append("KEPT", test_id=test_id, uplift_pp=round(a.uplift * 100, 1), ci=ci,
+        log.append("KEPT", test_id=test_id, uplift_pp=round(a.uplift * 100, 1),
+                   ci_low_pp=round(a.ci_low * 100, 1), ci_high_pp=round(a.ci_high * 100, 1), ci=ci,
                    note=f"cards-first wins by {a.uplift*100:+.1f}pp, range {ci} excludes zero")
         log.append("LEARNED", test_id=test_id, claim=f"cards-first WINS for {proposal.slice.label()}")
     elif end == TestStatus.stopped_bad_split:
         log.append("BRAKE_PULLED", test_id=test_id, realized_loss_inr=loss, max_loss_inr=cap,
                    reason="assignment split broke — result would be meaningless, halted")
     else:
-        log.append("NO_DIFFERENCE", test_id=test_id, uplift_pp=round(a.uplift * 100, 1), ci=ci,
+        log.append("NO_DIFFERENCE", test_id=test_id, uplift_pp=round(a.uplift * 100, 1),
+                   ci_low_pp=round(a.ci_low * 100, 1), ci_high_pp=round(a.ci_high * 100, 1), ci=ci,
                    note=f"no difference found — range {ci} includes zero; not promoted")
         log.append("LEARNED", test_id=test_id, claim=f"cards-first is a wash for {proposal.slice.label()}")
     return end
