@@ -14,7 +14,7 @@
   --accent:212 100% 96%; --accent-foreground:212 90% 38%; --border:214 25% 90%;
   --state-watching:215 16% 47%; --state-thinking:262 70% 60%; --state-allowed:212 100% 60%;
   --state-blocked:0 78% 55%; --state-toosmall:38 92% 50%; --state-running:199 89% 48%;
-  --state-braked:0 84% 48%; --state-kept:142 71% 40%;
+  --state-braked:0 84% 48%; --state-kept:142 71% 40%; --state-nodiff:215 16% 60%;
   --radius:10px;
 }
 *{box-sizing:border-box}
@@ -66,6 +66,13 @@ main{max-width:1180px;margin:0 auto;padding:18px 20px;display:grid;
 .meter{height:6px;border-radius:3px;background:hsl(var(--muted));overflow:hidden;margin-top:8px}
 .meter>span{display:block;height:100%;border-radius:3px;background:hsl(var(--primary));width:0;transition:width .5s ease-out,background-color .3s}
 .meter.hot>span{background:hsl(var(--state-braked))}
+.bar{height:7px;border-radius:3px;background:hsl(var(--muted));overflow:hidden;margin-top:5px}
+.bar>span{display:block;height:100%;border-radius:3px;background:hsl(var(--state-running));width:0;transition:width .4s ease-out}
+.bar.ctrl>span{background:hsl(var(--muted-foreground))}
+.grp{display:flex;justify-content:space-between;font-size:12.5px;margin-top:10px}
+.grp .num{font-weight:500}
+@keyframes alarm{0%,100%{background-color:transparent}30%{background-color:hsl(var(--state-braked)/.16)}}
+.alarm{animation:alarm .5s ease-out 2}
 .check{color:hsl(var(--state-kept));font-weight:600}
 .empty{color:hsl(var(--muted-foreground));font-size:13px;padding:6px 0}
 
@@ -105,9 +112,16 @@ footer{max-width:1180px;margin:8px auto 40px;padding:12px 20px}
     </div>
   </section>
   <aside class="rail">
-    <div class="panel">
+    <div class="panel" id="activePanel">
       <h3>Active test</h3>
-      <div id="activeTest" class="empty">No test running.</div>
+      <div id="activeEmpty" class="empty">No test running.</div>
+      <div id="activeBody" hidden>
+        <div id="activeHead" style="font-weight:600"></div>
+        <div class="grp"><span>control <span class="num" id="ctrlRate">—</span></span><span class="num muted" id="ctrlN">0</span></div>
+        <div class="bar ctrl"><span id="ctrlBar"></span></div>
+        <div class="grp"><span>cards-first <span class="num" id="trtRate">—</span></span><span class="num muted" id="trtN">0</span></div>
+        <div class="bar"><span id="trtBar"></span></div>
+      </div>
     </div>
     <div class="panel">
       <h3>Money at risk</h3>
@@ -136,7 +150,9 @@ footer{max-width:1180px;margin:8px auto 40px;padding:12px 20px}
 <script>
 const $ = (id) => document.getElementById(id);
 const STATE = { watching:"--state-watching", proposed:"--state-thinking", blocked:"--state-blocked",
-  toosmall:"--state-toosmall", capset:"--state-allowed" };
+  toosmall:"--state-toosmall", capset:"--state-allowed", running:"--state-running",
+  braked:"--state-braked", reverted:"--state-toosmall", kept:"--state-kept",
+  nodiff:"--state-nodiff", learned:"--state-thinking" };
 const t0 = Date.now();
 function fmtSim(s){ const d=Math.floor(s/86400), h=Math.floor((s%86400)/3600); return `${d}d ${h}h`; }
 function fmtReal(){ const s=Math.floor((Date.now()-t0)/1000); return `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`; }
@@ -151,11 +167,11 @@ function card(kind, cls, glyph, title, bodyHTML){
   el.scrollIntoView({behavior:"smooth", block:"end"});
 }
 
+let runShown = null;  // test_id whose RUNNING card is already in the stream
 function render(e){
   $("simClock").textContent = fmtSim(e.sim_ts||0);
   if(e.kind==="WATCHING")
-    card("watching","card-in","●","WATCHING",
-      `${e.slice}<div class="sub">${e.note}</div>`);
+    card("watching","card-in","●","WATCHING", `${e.slice}<div class="sub">${e.note}</div>`);
   else if(e.kind==="PROPOSED")
     card("proposed","card-in","✦","PROPOSED",
       `${e.headline}<div class="sub">${e.slice} · asked <span class="num">${Math.round(e.traffic_share*100)}%</span> of traffic</div>`);
@@ -165,19 +181,48 @@ function render(e){
     card("toosmall","card-in","⊘","TOO SMALL TO MEASURE", `${e.note}`);
   else if(e.kind==="CAP_SET"){
     card("capset","card-in","₹","CAP SET · ADMITTED", `${e.note}`);
-    setActive(e);
+    armRail(e); runShown = null;
   }
+  else if(e.kind==="RUNNING") updateRun(e);
+  else if(e.kind==="BRAKE_PULLED"){
+    card("braked","card-stamp","■","BRAKE PULLED", `<span class="reason">${e.reason}</span>`);
+    $("activePanel").classList.add("alarm"); $("lossMeter").classList.add("hot");
+    setTimeout(()=>$("activePanel").classList.remove("alarm"), 1100);
+  }
+  else if(e.kind==="REVERTED") card("reverted","card-in","↩","REVERTED", `${e.note}`);
+  else if(e.kind==="KEPT"){ card("kept","card-in","✓","KEPT", `${e.note}`); }
+  else if(e.kind==="NO_DIFFERENCE") card("nodiff","card-in","=","NO DIFFERENCE", `${e.note}`);
+  else if(e.kind==="LEARNED") card("learned","card-in","✦","LEARNED", `<span class="muted">${e.claim}</span>`);
 }
 
-function setActive(e){
-  $("activeTest").className = "";
-  $("activeTest").innerHTML = `<div style="font-weight:600">Admitted — ready to run</div>
-    <div class="sub muted" style="font-size:12.5px;margin-top:4px">${e.note}</div>`;
+function armRail(e){
+  $("activeEmpty").hidden = true; $("activeBody").hidden = false;
+  $("activeHead").textContent = e.headline || "Admitted — running";
   const cap = e.max_loss_inr||0;
   $("lossCap").textContent = `/ ₹${cap.toLocaleString("en-IN")}`;
   $("lossNow").textContent = `₹0`;
-  $("lossMeter").querySelector("span").style.width = "0%";
+  $("lossMeter").classList.remove("hot"); $("lossMeter").querySelector("span").style.width="0%";
   ["sr1","sr2","sr3","sr4"].forEach(id=>$(id).textContent="✓ armed");
+}
+
+function updateRun(e){
+  if(e.day===0 || e.sessions_treatment===undefined) return;
+  $("activeEmpty").hidden = true; $("activeBody").hidden = false;
+  const pc=(e.rate_control*100), pt=(e.rate_treatment*100);
+  $("ctrlRate").textContent = pc.toFixed(1)+"%"; $("trtRate").textContent = pt.toFixed(1)+"%";
+  $("ctrlN").textContent = e.sessions_control.toLocaleString("en-IN");
+  $("trtN").textContent = e.sessions_treatment.toLocaleString("en-IN");
+  $("ctrlBar").style.width = Math.min(100, pc)+"%"; $("trtBar").style.width = Math.min(100, pt)+"%";
+  const cap=e.max_loss_inr||1, loss=e.realized_loss_inr||0;
+  $("lossNow").textContent = `₹${loss.toLocaleString("en-IN")}`;
+  $("lossCap").textContent = `/ ₹${cap.toLocaleString("en-IN")}`;
+  $("lossMeter").querySelector("span").style.width = Math.min(100, loss/cap*100)+"%";
+  const fr = e.failure_rise_pp;
+  $("sr1").textContent = (fr>1?"⚠ ":"✓ ")+(fr>0?`+${fr}pp`:`${fr}pp`);
+  $("sr1").style.color = fr>1?"hsl(var(--state-braked))":"hsl(var(--state-kept))";
+  $("sr4").textContent = e.split_ok?"✓ ok":"⚠ broken";
+  if(runShown!==e.test_id){ runShown=e.test_id;
+    card("running","card-in","▸","RUNNING", `${$("activeHead").textContent}<div class="sub">splitting traffic 50/50 · watching the brake</div>`); }
 }
 
 function start(){

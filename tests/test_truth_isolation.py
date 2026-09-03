@@ -25,6 +25,12 @@ def test_reasoner_cannot_see_ground_truth():
 
 
 def test_importing_the_agent_side_does_not_load_truth():
-    for mod in ("backend.rules", "backend.feasibility"):
-        __import__(mod)
-    assert "backend.sim.truth" not in sys.modules, "an agent module pulled in ground truth"
+    # In a clean interpreter, importing the agent modules must not drag in truth.
+    # (Run isolated: the full test session loads the simulator, which legitimately
+    # imports truth — so we check in a fresh subprocess.)
+    import subprocess
+    code = ("import sys;import backend.rules,backend.feasibility,backend.scoreboard;"
+            "assert 'backend.sim.truth' not in sys.modules;print('clean')")
+    out = subprocess.run([sys.executable, "-c", code], cwd=str(BACKEND.parent),
+                         capture_output=True, text=True)
+    assert out.returncode == 0 and "clean" in out.stdout, out.stderr

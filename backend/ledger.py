@@ -61,6 +61,14 @@ def set_status(conn: sqlite3.Connection, test_id: str, status: str) -> None:
     conn.commit()
 
 
+def update_test(conn: sqlite3.Connection, test_id: str, **fields: Any) -> None:
+    if not fields:
+        return
+    sets = ", ".join(f"{k} = :{k}" for k in fields)
+    conn.execute(f"UPDATE tests SET {sets} WHERE id = :id", {**fields, "id": test_id})
+    conn.commit()
+
+
 def record_decision(conn: sqlite3.Connection, row: dict[str, Any]) -> None:
     cols = ", ".join(row)
     marks = ", ".join(f":{c}" for c in row)

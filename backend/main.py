@@ -33,10 +33,14 @@ async def stream(seed: int = 42):
     """Generate a deterministic run, then replay its cards with demo pacing."""
     path = run_demo(seed=seed, speed=10_000.0)
 
+    fast = {"RUNNING"}
+    weighty = {"BRAKE_PULLED", "KEPT", "NO_DIFFERENCE", "REVERTED", "LEARNED"}
+
     async def gen():
         for event in read_log(path):
             yield f"data: {json.dumps(event)}\n\n"
-            await asyncio.sleep(1.0 if event["kind"] in {"PROPOSED", "WATCHING"} else 1.4)
+            kind = event["kind"]
+            await asyncio.sleep(0.3 if kind in fast else 1.35 if kind in weighty else 1.05)
         yield "event: done\ndata: {}\n\n"
 
     return StreamingResponse(gen(), media_type="text/event-stream",

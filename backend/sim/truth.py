@@ -18,9 +18,11 @@ BASELINE_COMPLETION = 0.72
 # Effect of showing CARDS first (vs the current UPI-first default), in percentage
 # points. Checked most-specific first. Anything unlisted is 0 (no real effect).
 _EFFECTS_PP: list[tuple[dict[str, str], float]] = [
-    ({"device": "mobile", "customer_type": "returning", "order_band": "1k-3k"}, +7.0),
-    ({"device": "mobile", "customer_type": "returning", "order_band": ">5k"}, -4.0),  # harmful
-    ({"device": "tablet", "customer_type": "returning"}, 0.0),                        # honesty test
+    ({"device": "mobile", "customer_type": "returning", "order_band": "1k-3k"}, +7.0),   # the win -> KEPT
+    ({"device": "mobile", "customer_type": "returning", "order_band": ">5k"}, -4.0),      # harmful, but excluded by window
+    ({"device": "desktop", "customer_type": "new", "order_band": "1k-3k"}, -5.0),         # harmful in-window -> BRAKE -> revert
+    ({"device": "mobile", "customer_type": "new", "order_band": "1k-3k"}, 0.0),           # exactly 0 -> the honesty test
+    ({"device": "tablet", "customer_type": "returning"}, 0.0),
     ({"device": "mobile", "customer_type": "new"}, +0.5),
     ({"device": "desktop"}, -1.0),
 ]

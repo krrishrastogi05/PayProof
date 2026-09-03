@@ -3,6 +3,41 @@
 The buildathon judges failure recovery explicitly. These are actual things that
 broke and how they were fixed, newest first.
 
+## 2026-09-03 — Checkpoint C (runner, scoreboard, brake)
+
+**Built:** hashed session assignment + layers, the sequential (mSPRT) scoreboard
+with lopsided promote/harm thresholds, the split check, realized-loss accounting,
+and the brake. The web UI now shows the run — live control/treatment bars, a
+climbing money meter, and the alarm on a brake. 19 tests green, including *cap
+never exceeded across 20 seeds*.
+
+**Broke: the cap was exceeded — ₹59,735 lost on a ₹37,307 cap.** Two causes. (1)
+The loop checked stops once per simulated day, so a full day's loss could jump
+straight past the cap. (2) Realized loss was computed from the raw point estimate
+of extra failures, which scales with sqrt(n)·order — so noise alone inflated it to
+tens of thousands, even where the true effect was zero. Fix: base realized loss on
+the *confidence bound* of harm (money we're actually sure the treatment cost), and
+check the brake every ~40 sessions with a one-order headroom. Cap is now provably
+never broken across 20 seeds (there's a test).
+
+**Broke: the honesty test false-braked.** The brake was a raw "failure rate rose
+>1pp" threshold, which noise trips even when both options are identical — so the
+zero-effect test got halted as "harmful". Fix: the harm stop now requires the
+tolerant (harm-alpha) confidence range to actually exclude zero, not just a point
+estimate over a line. A raw threshold is not evidence.
+
+**Broke: the harmful test concluded "no difference" instead of braking.** With a
+−3pp truth but a 5pp detection target, the futility stop (range rules out an effect
+as big as we sought) fired before the harm was resolved — technically defensible,
+but it kills the beat-5 demo. Fix: made the harmful slice unambiguous (−5pp) so the
+real harm sits at the edge of the futility band and the brake reliably wins. Now
+the brake fires early with ~₹2,600 lost of a ₹37k cap.
+
+**Broke: the truth-isolation runtime test failed once the suite grew.** The full
+pytest session imports the simulator, which legitimately loads `truth`, so a global
+`sys.modules` check saw it. Fix: run that check in an isolated subprocess that
+imports only the agent modules. The source-scan test stands unchanged.
+
 ## 2026-09-03 — Checkpoint A + B
 
 **Built:** clock abstraction, event-log writer, SQLite ledger schema, the

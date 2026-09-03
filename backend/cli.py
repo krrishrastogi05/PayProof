@@ -18,43 +18,60 @@ from .config import load_policy
 from .eventlog import EventLog, read_log
 from .ledger import connect
 from .models import CustomerType, Device, Proposal, Slice, TestKind
-from .pipeline import evaluate
+from .pipeline import conduct
 from .sim.world import World
 
 C = {"grey": "\033[90m", "red": "\033[91m", "amber": "\033[93m", "blue": "\033[94m",
-     "green": "\033[92m", "violet": "\033[95m", "bold": "\033[1m", "off": "\033[0m"}
+     "green": "\033[92m", "violet": "\033[95m", "cyan": "\033[96m", "bold": "\033[1m", "off": "\033[0m"}
 
 CARD = {
     "PROPOSED": ("✎", "violet", "PROPOSED"),
     "BLOCKED": ("✕", "red", "BLOCKED"),
     "TOO_SMALL": ("⊘", "amber", "TOO SMALL TO MEASURE"),
     "CAP_SET": ("₹", "blue", "CAP SET · ADMITTED"),
+    "RUNNING": ("▸", "cyan", "RUNNING"),
+    "BRAKE_PULLED": ("■", "red", "BRAKE PULLED"),
+    "REVERTED": ("↩", "amber", "REVERTED"),
+    "KEPT": ("✓", "green", "KEPT"),
+    "NO_DIFFERENCE": ("=", "grey", "NO DIFFERENCE"),
+    "LEARNED": ("✦", "violet", "LEARNED"),
 }
 
 
 def _proposals() -> list[Proposal]:
-    good = Slice(device=Device.mobile, customer_type=CustomerType.returning, order_band="1k-3k")
+    win = Slice(device=Device.mobile, customer_type=CustomerType.returning, order_band="1k-3k")
+    harm = Slice(device=Device.desktop, customer_type=CustomerType.new, order_band="1k-3k")
+    honest = Slice(device=Device.mobile, customer_type=CustomerType.new, order_band="1k-3k")
     small = Slice(device=Device.desktop, customer_type=CustomerType.returning, order_band="1k-3k")
     tail = Slice(device=Device.mobile, customer_type=CustomerType.returning, order_band=">5k")
+    P = Proposal
     return [
-        Proposal(what_changed="Show cards first for mobile returning buyers (₹1k–3k)",
-                 test_kind=TestKind.payment_method_order, slice=good, traffic_share=0.25,
-                 metric_to_watch="checkout completion", why="completion in this slice fell 8pp",
-                 effect_to_detect_pp=7),
-        Proposal(what_changed="Show cards first for mobile returning buyers (₹1k–3k)",
-                 test_kind=TestKind.payment_method_order, slice=good, traffic_share=0.10,
-                 metric_to_watch="checkout completion", why="same idea, within the ceiling",
-                 effect_to_detect_pp=7),
-        Proposal(what_changed="Show cards first for desktop returning buyers (₹1k–3k)",
-                 test_kind=TestKind.payment_method_order, slice=small, traffic_share=0.10,
-                 metric_to_watch="checkout completion", why="small wobble, want to detect 2pp",
-                 effect_to_detect_pp=2),
-        Proposal(what_changed="Retry without re-authenticating to speed recovery",
-                 test_kind=TestKind.retry_timing, slice=good, traffic_share=0.10,
-                 metric_to_watch="recovery rate", why="faster retries", touches=["skip_authentication"]),
-        Proposal(what_changed="Show cards first for high-value orders (>₹5k)",
-                 test_kind=TestKind.payment_method_order, slice=tail, traffic_share=0.10,
-                 metric_to_watch="checkout completion", why="chase the big baskets", effect_to_detect_pp=5),
+        # Beat 3 — asks for too much, blocked; then within the ceiling, runs and wins.
+        P(what_changed="Show cards first for mobile returning buyers (₹1k–3k)",
+          test_kind=TestKind.payment_method_order, slice=win, traffic_share=0.25,
+          metric_to_watch="checkout completion", why="completion fell 8pp here", effect_to_detect_pp=7),
+        P(what_changed="Show cards first for mobile returning buyers (₹1k–3k)",
+          test_kind=TestKind.payment_method_order, slice=win, traffic_share=0.10,
+          metric_to_watch="checkout completion", why="same idea, within the ceiling", effect_to_detect_pp=7),
+        # Beat 5 — a test that turns harmful mid-flight; the brake stops it.
+        P(what_changed="Show cards first for desktop new buyers (₹1k–3k)",
+          test_kind=TestKind.payment_method_order, slice=harm, traffic_share=0.10,
+          metric_to_watch="checkout completion", why="try the same win on desktop new", effect_to_detect_pp=5),
+        # Beat 6 — the honesty test: both options are secretly identical.
+        P(what_changed="Show cards first for mobile new buyers (₹1k–3k)",
+          test_kind=TestKind.payment_method_order, slice=honest, traffic_share=0.10,
+          metric_to_watch="checkout completion", why="unclear signal, worth checking", effect_to_detect_pp=5),
+        # Beat 4 — too small to measure.
+        P(what_changed="Show cards first for desktop returning buyers (₹1k–3k)",
+          test_kind=TestKind.payment_method_order, slice=small, traffic_share=0.10,
+          metric_to_watch="checkout completion", why="small wobble, want to detect 2pp", effect_to_detect_pp=2),
+        # Prohibited action, and out-of-window orders — both blocked.
+        P(what_changed="Retry without re-authenticating to speed recovery",
+          test_kind=TestKind.retry_timing, slice=win, traffic_share=0.10,
+          metric_to_watch="recovery rate", why="faster retries", touches=["skip_authentication"]),
+        P(what_changed="Show cards first for high-value orders (>₹5k)",
+          test_kind=TestKind.payment_method_order, slice=tail, traffic_share=0.10,
+          metric_to_watch="checkout completion", why="chase the big baskets", effect_to_detect_pp=5),
     ]
 
 
@@ -71,7 +88,7 @@ def run_demo(seed: int = 42, speed: float = 10_000.0) -> str:
                note="completion 72.1% → 63.7% over 14 days · set 19 months ago, never re-tested")
     for p in _proposals():
         clock.advance(3600)  # an hour of sim time between proposals
-        evaluate(p, policy=policy, world=world, log=log, conn=conn, run_id=run_id)
+        conduct(p, policy=policy, world=world, log=log, conn=conn, run_id=run_id, clock=clock)
     log.close()
     conn.close()
     return str(log.path)
@@ -92,10 +109,15 @@ def render(path: str) -> None:
             print(f"  {e['headline']}  ·  {e['slice']}  ·  asked {int(e['traffic_share']*100)}% of traffic")
         elif kind == "BLOCKED":
             print(f"  {C['red']}{e['reason']}{C['off']}")
-        elif kind == "TOO_SMALL":
-            print(f"  {e['note']}")
-        elif kind == "CAP_SET":
-            print(f"  {e['note']}")
+        elif kind in ("TOO_SMALL", "CAP_SET", "KEPT", "NO_DIFFERENCE", "REVERTED"):
+            print(f"  {e.get('note', '')}")
+        elif kind == "RUNNING" and e.get("day"):
+            print(f"  day {e['day']}: control {e['rate_control']*100:.1f}%  treatment {e['rate_treatment']*100:.1f}%  "
+                  f"· at risk ₹{e['realized_loss_inr']:,.0f} / ₹{e['max_loss_inr']:,.0f}")
+        elif kind == "BRAKE_PULLED":
+            print(f"  {C['red']}{e['reason']}{C['off']}")
+        elif kind == "LEARNED":
+            print(f"  {C['grey']}{e['claim']}{C['off']}")
         print()
 
 
