@@ -17,12 +17,22 @@ const HELP = [
   ["set K V", "tune a policy limit, e.g. set max_traffic_share 0.25"],
   ["config", "current limits + seed"],
   ["seed N", "set the simulation seed"],
+  ["runs", "the archived run history"],
+  ["report [id]", "a generated report for a run (default: latest)"],
+  ["compare A B", "diff two runs — what a policy lever changed"],
   ["dataset", "the payment world: slices, traffic, order sizes"],
   ["policy", "the boundaries the agent runs inside"],
   ["ledger", "every test and how it ended"],
   ["memory", "what the agent has learned"],
   ["clear", "clear the screen"],
 ];
+
+type Run = {
+  id: number; seed: number; live: number; created_at: string; policy_json: string;
+  n_tests: number; n_winners: number; n_harmful: number; n_wash: number;
+  n_blocked: number; n_too_small: number; n_learnings: number;
+  total_loss_inr: number; cap_broken: number; sim_seconds: number;
+};
 
 export function Terminal({ onRun }: { onRun: (live: boolean, seed: number) => void }) {
   const [lines, setLines] = useState<Line[]>([]);
@@ -88,6 +98,57 @@ export function Terminal({ onRun }: { onRun: (live: boolean, seed: number) => vo
         const d = await getJSON<{ learnings: { claim: string }[] }>("/memory");
         if (!d.learnings.length) push(C.m("nothing learned yet — run `simulate`."));
         d.learnings.forEach((l) => push(<>{C.b("✦ ")}{C.m(l.claim)}</>));
+      } else if (name === "runs") {
+        const rs = await getJSON<Run[]>("/runs");
+        if (!rs.length) push(C.m("no runs archived yet — run `simulate` first."));
+        else {
+          push(C.m("id     seed   tests  kept  braked  blocked   loss        traffic"));
+          rs.forEach((r) => {
+            const lev = JSON.parse(r.policy_json || "{}");
+            push(<>{C.b(("#" + r.id).padEnd(7))}{C.m(String(r.seed).padEnd(7))}{C.m(String(r.n_tests).padEnd(7))}{C.g(String(r.n_winners).padEnd(6))}{C.r(String(r.n_harmful).padEnd(8))}{C.a(String(r.n_blocked).padEnd(10))}{C.m(rupee(r.total_loss_inr).padEnd(12))}{C.b(String(lev.max_traffic_share ?? "—"))}</>);
+          });
+          push(<>{C.m("→ ")}{C.b("report <id>")}{C.m(" for detail, ")}{C.b("compare <a> <b>")}{C.m(" to diff")}</>);
+        }
+      } else if (name === "report") {
+        const rs = await getJSON<Run[]>("/runs");
+        if (!rs.length) { push(C.m("no runs yet — run `simulate` first.")); }
+        else {
+          const id = args[0] ? parseInt(args[0].replace("#", ""), 10) : rs[0].id;
+          const rep = await getJSON<{ markdown?: string; error?: string }>(`/runs/${id}/report`);
+          if (rep.error || !rep.markdown) push(C.r(rep.error || "no report"));
+          else rep.markdown.split("\n").forEach((line) => {
+            if (line.startsWith("# ")) push(<>{C.b(line.slice(2))}</>);
+            else if (line.startsWith("## ")) push(<>{C.a(line.slice(3))}</>);
+            else if (line.startsWith("- ")) push(<>{C.m("  • " + line.slice(2))}</>);
+            else if (line.startsWith("_")) push(C.m(line.replace(/_/g, "")));
+            else push(C.m(line));
+          });
+        }
+      } else if (name === "compare") {
+        const rs = await getJSON<Run[]>("/runs");
+        const find = (s?: string) => rs.find((r) => r.id === parseInt((s || "").replace("#", ""), 10));
+        const a = find(args[0]), b = find(args[1]);
+        if (!a || !b) push(C.r("usage: compare <id> <id>   (see `runs`)"));
+        else {
+          const la = JSON.parse(a.policy_json || "{}"), lb = JSON.parse(b.policy_json || "{}");
+          push(<>{C.m("compare ")}{C.b("#" + a.id)}{C.m(" ↔ ")}{C.b("#" + b.id)}{C.m("   (what moved, and what it changed)")}</>);
+          const rows: [string, number | string, number | string, boolean][] = [
+            ["max_traffic_share", la.max_traffic_share, lb.max_traffic_share, true],
+            ["max_loss_per_test", la.max_loss_per_test_inr, lb.max_loss_per_test_inr, true],
+            ["harm_alpha", la.harm_alpha, lb.harm_alpha, true],
+            ["— kept", a.n_winners, b.n_winners, false],
+            ["— braked", a.n_harmful, b.n_harmful, false],
+            ["— blocked", a.n_blocked, b.n_blocked, false],
+            ["— loss", a.total_loss_inr, b.total_loss_inr, false],
+            ["— cap broken", a.cap_broken, b.cap_broken, false],
+          ];
+          rows.forEach(([k, va, vb, isLever]) => {
+            const changed = String(va) !== String(vb);
+            const fmt = (v: number | string) => (k === "— loss" ? rupee(Number(v)) : String(v));
+            const col = isLever ? C.b : changed ? C.g : C.m;
+            push(<>{C.m(k.padEnd(20))}{(changed ? C.a : C.m)(fmt(va).padEnd(11))}{C.m("→ ")}{col(fmt(vb))}</>);
+          });
+        }
       } else push(C.r(`unknown command: ${name} (try 'help')`));
     } catch {
       push(C.r(`could not reach the backend at ${API} — is it running on :8100?`));

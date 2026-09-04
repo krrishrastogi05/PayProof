@@ -11,12 +11,15 @@ Where its numbers come from: the pipeline, via the ledger and policy.yaml.
 
 from __future__ import annotations
 
+import json
+import sqlite3
 import sys
+from datetime import datetime, timezone
 
-from .clock import SimClock
-from .config import load_policy
+from .clock import Clock, SimClock
+from .config import Policy, load_policy
 from .eventlog import EventLog, read_log
-from .ledger import connect
+from .ledger import clear_run, connect, record_run, summarize_run
 from .models import CustomerType, Device, Proposal, Slice, TestKind
 from .pipeline import conduct, reason_and_conduct
 from .sim.world import World
@@ -82,6 +85,25 @@ def _proposals() -> list[Proposal]:
     ]
 
 
+def _archive_run(conn: sqlite3.Connection, run_id: str, seed: int, live: bool,
+                 policy: Policy, clock: Clock) -> None:
+    """Snapshot this run into the registry — the moving levers plus the outcome —
+    so runs persist and can be compared even after the next same-seed run."""
+    levers = {
+        "max_traffic_share": policy.limits.max_traffic_share,
+        "max_loss_per_test_inr": policy.limits.max_loss_per_test_inr,
+        "max_minutes": policy.limits.max_minutes,
+        "harm_alpha": policy.brake.harm_alpha,
+        "alpha": policy.promote.alpha,
+        "autonomy": policy.autonomy,
+    }
+    record_run(conn, {
+        "run_id": run_id, "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "seed": seed, "live": int(live), "policy_json": json.dumps(levers),
+        "sim_seconds": round(clock.now(), 1), **summarize_run(conn, run_id),
+    })
+
+
 def run_demo(seed: int = 42, speed: float = 10_000.0) -> str:
     policy = load_policy()
     clock = SimClock(speed=speed)
@@ -90,12 +112,14 @@ def run_demo(seed: int = 42, speed: float = 10_000.0) -> str:
     (RUNS_DIR / f"{run_id}.jsonl").unlink(missing_ok=True)  # start clean so replays are exact
     log = EventLog(run_id, clock)
     conn = connect()
+    clear_run(conn, run_id)  # drop this run_id's prior rows; the registry keeps its summary
     world = World(seed=seed)
     log.append("WATCHING", slice="mobile · returning · 1k-3k",
                note="completion 72.1% → 63.7% over 14 days · set 19 months ago, never re-tested")
     for p in _proposals():
         clock.advance(3600)  # an hour of sim time between proposals
         conduct(p, policy=policy, world=world, log=log, conn=conn, run_id=run_id, clock=clock)
+    _archive_run(conn, run_id, seed, live=False, policy=policy, clock=clock)
     log.close()
     conn.close()
     return str(log.path)
@@ -117,6 +141,7 @@ def run_live(seed: int = 42, speed: float = 10_000.0) -> str:
     for f in flags:
         clock.advance(3600)
         reason_and_conduct(f, policy=policy, world=world, log=log, conn=conn, run_id=run_id, clock=clock)
+    _archive_run(conn, run_id, seed, live=True, policy=policy, clock=clock)
     log.close()
     conn.close()
     return str(log.path)

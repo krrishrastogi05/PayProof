@@ -80,6 +80,28 @@ async def policy_set(body: dict) -> JSONResponse:
         return JSONResponse({"ok": False, "message": str(e), "tunable": tunables()}, status_code=400)
 
 
+@app.get("/runs")
+def runs() -> JSONResponse:
+    """The archived run history — the persistent evaluator's memory of every run."""
+    from .ledger import list_runs
+    conn = connect()
+    rows = list_runs(conn)
+    conn.close()
+    return JSONResponse(rows)
+
+
+@app.get("/runs/{run_pk}/report")
+def run_report(run_pk: int) -> JSONResponse:
+    """A generated report for one archived run."""
+    from .report import build_report
+    conn = connect()
+    rep = build_report(conn, run_pk)
+    conn.close()
+    if rep is None:
+        return JSONResponse({"error": "no such run"}, status_code=404)
+    return JSONResponse(rep)
+
+
 @app.get("/dataset")
 def dataset() -> JSONResponse:
     """The observable world the merchant sees — slices, traffic, order sizes."""

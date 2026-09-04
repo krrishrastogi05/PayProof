@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Zap, Terminal as TermIcon, Radio, Workflow, CreditCard, Brain, BarChart3, ShieldAlert, OctagonX } from "lucide-react";
+import { Zap, Terminal as TermIcon, Radio, Workflow, CreditCard, Brain, BarChart3, History, ShieldAlert, OctagonX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PipelineGraph } from "@/components/thaw/PipelineGraph";
 import { Terminal } from "@/components/thaw/Terminal";
 import { CheckoutAB, RetryAB } from "@/components/thaw/Checkout";
 import { MemoryGraph } from "@/components/thaw/MemoryGraph";
 import { ProofView } from "@/components/thaw/ProofView";
+import { RunsView } from "@/components/thaw/RunsView";
 import { openStream, rupee, type ThawEvent } from "@/lib/thaw";
 
 const KIND_TONE: Record<string, string> = {
@@ -19,11 +20,12 @@ const KIND_TONE: Record<string, string> = {
 };
 const label = (k: string) => k.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
-type View = "pipeline" | "checkout" | "memory" | "proof";
+type View = "pipeline" | "checkout" | "memory" | "runs" | "proof";
 const VIEWS: { id: View; label: string; icon: typeof Workflow }[] = [
   { id: "pipeline", label: "Pipeline", icon: Workflow },
   { id: "checkout", label: "Checkout", icon: CreditCard },
   { id: "memory", label: "Memory", icon: Brain },
+  { id: "runs", label: "Runs", icon: History },
   { id: "proof", label: "Proof", icon: BarChart3 },
 ];
 
@@ -115,7 +117,11 @@ export default function Home() {
               })}
             </div>
             <span className="pr-1 text-[11px] text-muted-foreground">
-              {view === "pipeline" ? (running ? "processing…" : started ? "run complete" : "idle") : view === "checkout" ? "the frozen setting, tested live" : view === "memory" ? "what survived the tests" : "measured on the real simulator"}
+              {view === "pipeline" ? (running ? "processing…" : started ? "run complete" : "idle")
+                : view === "checkout" ? "the frozen setting, tested live"
+                  : view === "memory" ? "what survived the tests"
+                    : view === "runs" ? "every run archived & reported"
+                      : "measured on the real simulator"}
             </span>
           </div>
           <div className="relative min-h-0 flex-1">
@@ -132,6 +138,7 @@ export default function Home() {
             <div className={`absolute inset-0 transition-opacity duration-200 ${view === "memory" ? "" : "pointer-events-none opacity-0"}`}>
               <MemoryGraph nonce={memNonce} />
             </div>
+            {view === "runs" && <div className="absolute inset-0"><RunsView nonce={memNonce} /></div>}
             {view === "proof" && <div className="absolute inset-0"><ProofView /></div>}
           </div>
         </section>

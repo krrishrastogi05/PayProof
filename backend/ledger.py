@@ -38,6 +38,15 @@ CREATE TABLE IF NOT EXISTS brake_events (
 CREATE TABLE IF NOT EXISTS policy_snapshots (
   id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, yaml_text TEXT
 );
+-- the run registry: one archived row per invocation, so runs persist and compare
+-- even after the ledger's per-test rows are overwritten by the next same-seed run.
+CREATE TABLE IF NOT EXISTS runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT, created_at TEXT,
+  seed INTEGER, live INTEGER, policy_json TEXT,
+  n_tests INTEGER, n_winners INTEGER, n_harmful INTEGER, n_wash INTEGER,
+  n_blocked INTEGER, n_too_small INTEGER, n_learnings INTEGER,
+  total_loss_inr REAL, cap_broken INTEGER, sim_seconds REAL
+);
 """
 
 
@@ -80,6 +89,54 @@ def all_tests(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     return [dict(r) for r in conn.execute("SELECT * FROM tests ORDER BY registered_at")]
 
 
+def clear_run(conn: sqlite3.Connection, run_id: str) -> None:
+    """Wipe a run_id's per-test rows before it re-runs, so the tests/decisions
+    tables hold exactly the latest run (the registry keeps the historical summary)."""
+    ids = [r[0] for r in conn.execute("SELECT id FROM tests WHERE run_id = ?", (run_id,))]
+    if ids:
+        marks = ",".join("?" * len(ids))
+        conn.execute(f"DELETE FROM decisions WHERE test_id IN ({marks})", ids)
+        conn.execute(f"DELETE FROM learnings WHERE test_id IN ({marks})", ids)
+    conn.execute("DELETE FROM tests WHERE run_id = ?", (run_id,))
+    conn.commit()
+
+
 def cap_broken_count(conn: sqlite3.Connection) -> int:
     """The headline safety claim: this must be 0 across every run and seed."""
     return conn.execute("SELECT COUNT(*) FROM tests WHERE cap_broken = 1").fetchone()[0]
+
+
+# --- run registry -------------------------------------------------------------
+_STATUS_COUNTS = {
+    "n_winners": "FOUND_WINNER", "n_harmful": "FOUND_HARMFUL", "n_wash": "NO_DIFFERENCE",
+    "n_blocked": "BLOCKED", "n_too_small": "DECLINED_TOO_SMALL",
+}
+
+
+def summarize_run(conn: sqlite3.Connection, run_id: str) -> dict[str, Any]:
+    """Roll this run's per-test rows up into the metrics a run is judged on."""
+    rows = [dict(r) for r in conn.execute("SELECT * FROM tests WHERE run_id = ?", (run_id,))]
+    counts = {k: sum(1 for r in rows if r["status"] == v) for k, v in _STATUS_COUNTS.items()}
+    return {
+        "n_tests": len(rows), **counts,
+        "n_learnings": counts["n_winners"] + counts["n_harmful"] + counts["n_wash"],
+        "total_loss_inr": round(sum(r["realized_loss_inr"] or 0 for r in rows), 0),
+        "cap_broken": sum(int(r["cap_broken"] or 0) for r in rows),
+    }
+
+
+def record_run(conn: sqlite3.Connection, row: dict[str, Any]) -> int:
+    cols = ", ".join(row)
+    marks = ", ".join(f":{c}" for c in row)
+    cur = conn.execute(f"INSERT INTO runs ({cols}) VALUES ({marks})", row)
+    conn.commit()
+    return int(cur.lastrowid or 0)
+
+
+def list_runs(conn: sqlite3.Connection, limit: int = 50) -> list[dict[str, Any]]:
+    return [dict(r) for r in conn.execute("SELECT * FROM runs ORDER BY id DESC LIMIT ?", (limit,))]
+
+
+def get_run(conn: sqlite3.Connection, run_pk: int) -> dict[str, Any] | None:
+    r = conn.execute("SELECT * FROM runs WHERE id = ?", (run_pk,)).fetchone()
+    return dict(r) if r else None
