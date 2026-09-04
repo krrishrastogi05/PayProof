@@ -7,7 +7,6 @@ Where its numbers come from: policy.yaml only. A magic number in a conditional i
 
 from __future__ import annotations
 
-from functools import lru_cache
 from pathlib import Path
 
 import yaml
@@ -62,7 +61,41 @@ class Policy(BaseModel):
     discovery_budget: DiscoveryBudget
 
 
-@lru_cache(maxsize=1)
+# A human may tune limits at runtime (the CLI stands in for editing policy.yaml).
+# We keep overrides in memory so the committed file is never mutated.
+# key -> (yaml section or "top", python type)
+_TUNABLE: dict[str, tuple[str, type]] = {
+    "max_traffic_share": ("limits", float), "max_loss_per_test_inr": ("limits", int),
+    "max_loss_per_day_inr": ("limits", int), "max_minutes": ("limits", int),
+    "max_tests_at_once": ("limits", int), "harm_alpha": ("brake", float),
+    "alpha": ("promote", float), "min_power": ("promote", float), "autonomy": ("top", str),
+}
+_OVERRIDE: dict[str, object] = {}
+
+
 def load_policy(path: str | Path = POLICY_PATH) -> Policy:
     with Path(path).open(encoding="utf-8") as fh:
-        return Policy(**yaml.safe_load(fh))
+        raw = yaml.safe_load(fh)
+    for key, val in _OVERRIDE.items():
+        section, _ = _TUNABLE[key]
+        if section == "top":
+            raw[key] = val
+        else:
+            raw.setdefault(section, {})[key] = val
+    return Policy(**raw)
+
+
+def set_override(key: str, value: str) -> str:
+    if key not in _TUNABLE:
+        raise KeyError(f"'{key}' is not tunable. try: {', '.join(_TUNABLE)}")
+    _, caster = _TUNABLE[key]
+    _OVERRIDE[key] = caster(value)
+    return f"{key} = {_OVERRIDE[key]}"
+
+
+def clear_overrides() -> None:
+    _OVERRIDE.clear()
+
+
+def tunables() -> list[str]:
+    return list(_TUNABLE)

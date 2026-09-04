@@ -65,6 +65,21 @@ def policy() -> JSONResponse:
     return JSONResponse({"yaml": POLICY_PATH.read_text(encoding="utf-8"), "parsed": p.model_dump()})
 
 
+@app.post("/policy/set")
+async def policy_set(body: dict) -> JSONResponse:
+    """Tune a policy limit at runtime — the CLI standing in for a human editing
+    policy.yaml. Kept in memory; the committed file is never touched."""
+    from .config import clear_overrides, set_override, tunables
+    key, value = body.get("key", ""), body.get("value", "")
+    if key == "reset":
+        clear_overrides()
+        return JSONResponse({"ok": True, "message": "policy reset to file defaults"})
+    try:
+        return JSONResponse({"ok": True, "message": set_override(str(key), str(value))})
+    except (KeyError, ValueError) as e:
+        return JSONResponse({"ok": False, "message": str(e), "tunable": tunables()}, status_code=400)
+
+
 @app.get("/dataset")
 def dataset() -> JSONResponse:
     """The observable world the merchant sees — slices, traffic, order sizes."""
@@ -80,12 +95,35 @@ def dataset() -> JSONResponse:
 
 @app.get("/memory")
 def memory() -> JSONResponse:
-    """What the agent has learned — the ledger as a memory graph."""
+    """What the agent has learned — the ledger as a memory graph.
+    Each concluded decision is a claim; we phrase it so the record is honest
+    about what didn't work, not just the wins."""
     conn = connect()
     tests = all_tests(conn)
-    learns = [dict(r) for r in conn.execute("SELECT test_id, claim FROM learnings ORDER BY id DESC")]
-    decisions = [dict(r) for r in conn.execute("SELECT test_id, decision, uplift, ci_low, ci_high, reason FROM decisions")]
+    head = {t["id"]: t.get("headline", "") for t in tests}
+    decisions = [dict(r) for r in conn.execute(
+        "SELECT test_id, decision, uplift, ci_low, ci_high, reason FROM decisions ORDER BY rowid DESC")]
     conn.close()
+
+    def _slice(h: str) -> str:  # "Show cards first for mobile returning buyers (…)" -> "mobile returning buyers"
+        s = h.replace("Show cards first for ", "").split(" (")[0]
+        return s or h
+
+    seen, learns = set(), []
+    for d in decisions:
+        sl = _slice(head.get(d["test_id"], ""))
+        if sl in seen:
+            continue
+        seen.add(sl)
+        pp, verb = round((d["uplift"] or 0) * 100, 1), d["decision"]
+        if verb == "FOUND_WINNER":
+            claim = f"Cards-first WINS for {sl} · +{pp}pp {d['reason']} — kept"
+        elif verb == "FOUND_HARMFUL":
+            claim = f"Cards-first HURT {sl} · {pp}pp {d['reason']} — reverted, won't retry"
+        else:
+            claim = f"Cards-first is a wash for {sl} · {d['reason']} — no measurable lift"
+        learns.append({"test_id": d["test_id"], "claim": claim})
+
     return JSONResponse({"tests": tests, "learnings": learns, "decisions": decisions})
 
 

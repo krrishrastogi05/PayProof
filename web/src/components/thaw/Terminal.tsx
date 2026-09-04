@@ -13,7 +13,10 @@ const C = {
 };
 
 const HELP = [
-  ["simulate", "run the full pipeline (add --live for Gemini)"],
+  ["simulate", "run the pipeline (--live for Gemini)"],
+  ["set K V", "tune a policy limit, e.g. set max_traffic_share 0.25"],
+  ["config", "current limits + seed"],
+  ["seed N", "set the simulation seed"],
   ["dataset", "the payment world: slices, traffic, order sizes"],
   ["policy", "the boundaries the agent runs inside"],
   ["ledger", "every test and how it ended"],
@@ -21,11 +24,12 @@ const HELP = [
   ["clear", "clear the screen"],
 ];
 
-export function Terminal({ onRun }: { onRun: (live: boolean) => void }) {
+export function Terminal({ onRun }: { onRun: (live: boolean, seed: number) => void }) {
   const [lines, setLines] = useState<Line[]>([]);
   const [val, setVal] = useState("");
   const [hist, setHist] = useState<string[]>([]);
   const [hi, setHi] = useState(-1);
+  const [seed, setSeed] = useState(42);
   const idRef = useRef(0);
   const bodyRef = useRef<HTMLDivElement>(null);
   const inRef = useRef<HTMLInputElement>(null);
@@ -43,9 +47,25 @@ export function Terminal({ onRun }: { onRun: (live: boolean) => void }) {
     if (!cmd) return;
     const [name, ...args] = cmd.split(/\s+/);
     try {
-      if (name === "help") HELP.forEach(([c, d]) => push(<>{C.b(c.padEnd(11))}{C.m(d)}</>));
+      if (name === "help") HELP.forEach(([c, d]) => push(<>{C.b(c.padEnd(12))}{C.m(d)}</>));
       else if (name === "clear") setLines([]);
-      else if (name === "simulate") { const live = args.includes("--live"); push(C.m(live ? "starting live Gemini run…" : "starting run…")); onRun(live); }
+      else if (name === "simulate") { const live = args.includes("--live"); push(C.m(`${live ? "live Gemini" : "curated"} run · seed ${seed}…`)); onRun(live, seed); }
+      else if (name === "seed") { const n = parseInt(args[0], 10); if (Number.isNaN(n)) push(C.r("usage: seed <number>")); else { setSeed(n); push(<>{C.m("seed = ")}{C.b(n)}</>); } }
+      else if (name === "config") {
+        const d = await getJSON<{ parsed: { limits: Record<string, number>; brake: Record<string, number>; promote: Record<string, number> } }>("/policy");
+        const L = d.parsed.limits;
+        push(<>{C.m("max_traffic_share ")}{C.b(L.max_traffic_share)}{C.m("   max_loss_per_test_inr ")}{C.b(rupee(L.max_loss_per_test_inr))}</>);
+        push(<>{C.m("max_minutes ")}{C.b(L.max_minutes + " (" + Math.round(L.max_minutes / 1440) + "d)")}{C.m("   harm_alpha ")}{C.b(d.parsed.brake.harm_alpha)}{C.m("   alpha ")}{C.b(d.parsed.promote.alpha)}</>);
+        push(<>{C.m("seed ")}{C.b(seed)}{C.m("   ·  tune with ")}{C.b("set <key> <value>")}</>);
+      } else if (name === "set") {
+        const [key, value] = args;
+        if (!key || value === undefined) { push(C.r("usage: set <key> <value>   (or: set reset)")); }
+        else {
+          const r = await fetch(API + "/policy/set", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key, value }) }).then((x) => x.json());
+          if (r.ok) push(<>{C.g("✓ ")}{C.m("policy · ")}{C.b(r.message)}{C.m("  — re-run ")}{C.b("simulate")}{C.m(" to see the effect")}</>);
+          else { push(C.r(r.message)); if (r.tunable) push(<>{C.m("tunable: ")}{C.a(r.tunable.join(", "))}</>); }
+        }
+      }
       else if (name === "dataset") {
         const d = await getJSON<{ total_per_day: number; baseline_completion: number; watched_slices: { slice: string; arrival_per_day: number; avg_order_inr: number }[] }>("/dataset");
         push(<>{C.m("~100k historical checkouts · ")}{C.b(d.total_per_day + "/day")}{C.m(" · baseline completion ")}{C.g((d.baseline_completion * 100).toFixed(1) + "%")}</>);

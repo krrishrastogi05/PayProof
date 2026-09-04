@@ -6,6 +6,8 @@ import { Zap, Terminal as TermIcon, Radio } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PipelineGraph } from "@/components/thaw/PipelineGraph";
 import { Terminal } from "@/components/thaw/Terminal";
+import { CheckoutAB } from "@/components/thaw/Checkout";
+import { MemoryGraph } from "@/components/thaw/MemoryGraph";
 import { openStream, rupee, type ThawEvent } from "@/lib/thaw";
 
 const KIND_TONE: Record<string, string> = {
@@ -24,6 +26,7 @@ export default function Home() {
   const [feed, setFeed] = useState<ThawEvent[]>([]);
   const [active, setActive] = useState<{ head: string; loss: number; cap: number; rc?: number; rt?: number } | null>(null);
   const [simTs, setSimTs] = useState(0);
+  const [memNonce, setMemNonce] = useState(0);
   const t0 = useRef(Date.now());
   const [real, setReal] = useState("0:00");
   const esRef = useRef<EventSource | null>(null);
@@ -40,11 +43,13 @@ export default function Home() {
     if (e.kind === "RUNNING" && e.day) setActive({ head: String(e.headline || "running"), loss: (e.realized_loss_inr as number) || 0, cap: (e.max_loss_inr as number) || 1, rc: (e.rate_control as number) * 100, rt: (e.rate_treatment as number) * 100 });
   }, []);
 
-  const start = useCallback((liveRun: boolean) => {
+  const start = useCallback((liveRun: boolean, seed = 42) => {
     esRef.current?.close();
     setStarted(true); setRunning(true); setLive(liveRun);
     setEvent(null); setFeed([]); setActive(null); t0.current = Date.now();
-    setTimeout(() => { esRef.current = openStream(liveRun, onEvent, () => setRunning(false)); }, 60);
+    setTimeout(() => {
+      esRef.current = openStream(liveRun, seed, onEvent, () => { setRunning(false); setMemNonce((n) => n + 1); });
+    }, 60);
   }, [onEvent]);
 
   const fmtSim = (s: number) => `${Math.floor(s / 86400)}d ${Math.floor((s % 86400) / 3600)}h`;
@@ -100,7 +105,7 @@ export default function Home() {
       </motion.section>
 
       {/* terminal + signal */}
-      <section className="my-4 grid grid-cols-1 gap-4 pb-16 lg:grid-cols-[1.35fr_1fr]">
+      <section className="my-4 grid grid-cols-1 gap-4 lg:grid-cols-[1.35fr_1fr]">
         <div className="h-[320px]"><Terminal onRun={start} /></div>
         <div className="flex flex-col gap-4">
           {/* latest signal */}
@@ -133,6 +138,28 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* what we're actually testing — the real checkout */}
+      {started && (
+        <motion.section layout initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="mb-4">
+          <div className="mb-3 flex items-baseline gap-3">
+            <span className="eyebrow">What we&apos;re testing</span>
+            <span className="text-[13px] text-muted-foreground">the same checkout, two method orders — <span className="font-serif-em text-[color:var(--gold)]">this</span> is the frozen setting.</span>
+          </div>
+          <CheckoutAB event={event} rc={active?.rc} rt={active?.rt} />
+        </motion.section>
+      )}
+
+      {/* memory — what the agent has learned, as a graph */}
+      {started && (
+        <motion.section layout initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="mb-16 rounded-2xl border border-border glass overflow-hidden">
+          <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+            <span className="eyebrow">Memory · what survived the tests</span>
+            <span className="text-[11px] text-muted-foreground">every claim traces to a ledger row</span>
+          </div>
+          <div className="h-[380px]"><MemoryGraph nonce={memNonce} /></div>
+        </motion.section>
+      )}
     </div>
   );
 }
