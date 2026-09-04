@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import {
   Background, BackgroundVariant, Handle, Position, ReactFlow,
-  useEdgesState, useNodesState, type Edge, type Node,
+  useEdgesState, useNodesState, type Edge, type Node, type ReactFlowInstance,
 } from "@xyflow/react";
 import { Brain } from "lucide-react";
 import { FlowEdge } from "./FlowEdge";
@@ -46,6 +46,7 @@ const edgeTypes = { flow: FlowEdge };
 export function MemoryGraph({ nonce }: { nonce: number }) {
   const [nodes, setNodes] = useNodesState<Node>([]);
   const [edges, setEdges] = useEdgesState<Edge>([]);
+  const rf = useRef<ReactFlowInstance<Node, Edge> | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -53,12 +54,11 @@ export function MemoryGraph({ nonce }: { nonce: number }) {
       const seen = new Set<string>();
       const items = d.learnings.filter((l) => (seen.has(l.claim) ? false : (seen.add(l.claim), true))).slice(0, 8);
       const center: Node = { id: "center", type: "memcenter", position: { x: 0, y: 0 }, data: { count: items.length }, draggable: false };
-      // wide-short container: fan the claims to the right of the hub so nothing overflows vertically
-      const RX = 430, RY = 165;
+      const R = 340;
       const n = Math.max(1, items.length);
       const cards: Node[] = items.map((l, i) => {
-        const a = n === 1 ? 0 : (-1 + (2 * i) / (n - 1)) * (Math.PI * 0.48); // right hemisphere, cos stays > 0
-        return { id: `m${i}`, type: "memcard", position: { x: Math.cos(a) * RX, y: Math.sin(a) * RY }, data: { claim: l.claim, tone: toneOf(l.claim) }, draggable: false };
+        const a = (i / n) * Math.PI * 2 - Math.PI / 2; // full circle around the hub
+        return { id: `m${i}`, type: "memcard", position: { x: Math.cos(a) * R, y: Math.sin(a) * R }, data: { claim: l.claim, tone: toneOf(l.claim) }, draggable: false };
       });
       const es: Edge[] = items.map((_, i) => ({ id: `e${i}`, source: "center", target: `m${i}`, type: "flow", data: { live: true } }));
       setNodes([center, ...cards]); setEdges(es);
@@ -66,12 +66,18 @@ export function MemoryGraph({ nonce }: { nonce: number }) {
   }, [setNodes, setEdges]);
 
   useEffect(() => { load(); }, [load, nonce]);
+  // nodes arrive after the async fetch AND React Flow measures their sizes a tick later,
+  // so rAF is too early — a short timeout lets fitView frame the real bounding box.
+  useEffect(() => {
+    if (!nodes.length) return;
+    const t = setTimeout(() => rf.current?.fitView({ padding: 0.22, duration: 400 }), 220);
+    return () => clearTimeout(t);
+  }, [nodes.length]);
 
   return (
-    // fixed layout + fixed 380px-tall container → a deterministic viewport frames the fan reliably
-    // (fitView races the async node load and mis-frames the wide-short canvas)
     <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
-      defaultViewport={{ x: 190, y: 190, zoom: 0.7 }} proOptions={{ hideAttribution: true }}
+      onInit={(i) => { rf.current = i; }}
+      fitView fitViewOptions={{ padding: 0.22 }} proOptions={{ hideAttribution: true }}
       nodesConnectable={false} elementsSelectable={false} zoomOnScroll={false} panOnScroll minZoom={0.3} maxZoom={1.2}>
       <Background variant={BackgroundVariant.Dots} gap={30} size={1} color="color-mix(in oklch, var(--brand) 40%, transparent)" />
     </ReactFlow>

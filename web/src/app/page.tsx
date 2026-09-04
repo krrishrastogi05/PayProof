@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Zap, Terminal as TermIcon, Radio } from "lucide-react";
+import { Zap, Terminal as TermIcon, Radio, Workflow, CreditCard, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PipelineGraph } from "@/components/thaw/PipelineGraph";
 import { Terminal } from "@/components/thaw/Terminal";
@@ -18,12 +18,19 @@ const KIND_TONE: Record<string, string> = {
 };
 const label = (k: string) => k.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
+type View = "pipeline" | "checkout" | "memory";
+const VIEWS: { id: View; label: string; icon: typeof Workflow }[] = [
+  { id: "pipeline", label: "Pipeline", icon: Workflow },
+  { id: "checkout", label: "Checkout", icon: CreditCard },
+  { id: "memory", label: "Memory", icon: Brain },
+];
+
 export default function Home() {
   const [started, setStarted] = useState(false);
   const [running, setRunning] = useState(false);
   const [live, setLive] = useState(false);
+  const [view, setView] = useState<View>("pipeline");
   const [event, setEvent] = useState<ThawEvent | null>(null);
-  const [feed, setFeed] = useState<ThawEvent[]>([]);
   const [active, setActive] = useState<{ head: string; loss: number; cap: number; rc?: number; rt?: number } | null>(null);
   const [simTs, setSimTs] = useState(0);
   const [memNonce, setMemNonce] = useState(0);
@@ -38,128 +45,123 @@ export default function Home() {
 
   const onEvent = useCallback((e: ThawEvent) => {
     setEvent(e); setSimTs((e.sim_ts as number) || 0);
-    setFeed((f) => [e, ...f].slice(0, 10));
     if (e.kind === "CAP_SET") setActive({ head: String(e.note || ""), loss: 0, cap: (e.max_loss_inr as number) || 0 });
     if (e.kind === "RUNNING" && e.day) setActive({ head: String(e.headline || "running"), loss: (e.realized_loss_inr as number) || 0, cap: (e.max_loss_inr as number) || 1, rc: (e.rate_control as number) * 100, rt: (e.rate_treatment as number) * 100 });
+    // pull the operator's eye to the surface that just changed
+    if (e.kind === "RUNNING" || e.kind === "CAP_SET") setView("checkout");
+    else if (e.kind === "KEPT" || e.kind === "REVERTED" || e.kind === "LEARNED") setView("memory");
   }, []);
 
   const start = useCallback((liveRun: boolean, seed = 42) => {
     esRef.current?.close();
     setStarted(true); setRunning(true); setLive(liveRun);
-    setEvent(null); setFeed([]); setActive(null); t0.current = Date.now();
+    setEvent(null); setActive(null); setView("pipeline"); t0.current = Date.now();
     setTimeout(() => {
-      esRef.current = openStream(liveRun, seed, onEvent, () => { setRunning(false); setMemNonce((n) => n + 1); });
+      esRef.current = openStream(liveRun, seed, onEvent, () => { setRunning(false); setMemNonce((n) => n + 1); setView("memory"); });
     }, 60);
   }, [onEvent]);
 
   const fmtSim = (s: number) => `${Math.floor(s / 86400)}d ${Math.floor((s % 86400) / 3600)}h`;
   const tone = event ? KIND_TONE[event.kind] || "var(--foreground)" : "var(--foreground)";
+  const pct = active ? Math.min(100, (active.loss / (active.cap || 1)) * 100) : 0;
 
   return (
-    <div className="relative z-10 mx-auto flex min-h-screen max-w-[1280px] flex-col px-6">
-      {/* header */}
-      <header className="sticky top-0 z-30 -mx-6 mb-2 flex items-center gap-4 border-b border-border glass px-6 py-3.5">
+    <div className="relative z-10 mx-auto flex h-screen w-full max-w-[1600px] flex-col overflow-hidden px-5">
+      {/* header — brand, clocks, run controls */}
+      <header className="flex shrink-0 items-center gap-4 border-b border-border py-3">
         <div className="flex items-baseline gap-1 text-[19px] font-semibold tracking-tight">
           Thaw<span className="font-serif-em text-[color:var(--gold)]">.</span>
         </div>
-        <span className="border-l border-border pl-4 text-[13px] text-muted-foreground">Acme Electronics</span>
+        <span className="hidden border-l border-border pl-4 text-[13px] text-muted-foreground sm:inline">Acme Electronics</span>
+        <span className="hidden text-[12px] text-muted-foreground md:inline">· UPI shown first on mobile, set 19 months ago, never re-tested</span>
         <div className="ml-auto flex items-center gap-4 text-[12px]">
-          <span className="mono"><span className="text-muted-foreground">SIM </span>{fmtSim(simTs)}</span>
-          <span className="mono"><span className="text-muted-foreground">REAL </span>{real}</span>
-          <span className="mono text-muted-foreground">10,000×</span>
+          <span className="mono hidden sm:inline"><span className="text-muted-foreground">SIM </span>{fmtSim(simTs)}</span>
+          <span className="mono hidden sm:inline"><span className="text-muted-foreground">REAL </span>{real}</span>
+          <span className="mono hidden text-muted-foreground lg:inline">10,000×</span>
+          <label className="hidden cursor-pointer items-center gap-1.5 text-[12px] text-muted-foreground sm:flex">
+            <input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} disabled={running} className="accent-[color:var(--brand)]" /> Gemini
+          </label>
+          <Button size="sm" onClick={() => start(live)} disabled={running} className="gap-1.5">
+            <Zap className="h-3.5 w-3.5" /> {running ? "Running…" : started ? "Re-run" : "Un-freeze it"}
+          </Button>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--brand)]/25 bg-[color:var(--accent)] px-2.5 py-1 text-[11px] font-semibold text-[color:var(--accent-foreground)]">
             <Radio className="h-3 w-3" /> {running ? "RUNNING" : "CANARY"}
           </span>
         </div>
       </header>
 
-      {/* hero */}
-      {!started && (
-        <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="py-14">
-          <div className="eyebrow mb-3">The frozen setting</div>
-          <h1 className="max-w-[16ch] text-[52px] font-semibold leading-[1.02] tracking-[-.03em]">
-            UPI shown first on mobile. <span className="font-serif-em text-[color:var(--gold)]">Still.</span>
-          </h1>
-          <div className="mt-4 text-[13px] text-muted-foreground">Set <span className="text-[color:var(--notice)]">19 months ago</span> · never re-tested · nobody has looked since.</div>
-          <p className="mt-5 max-w-[54ch] text-[16px] leading-relaxed text-muted-foreground">
-            Every merchant&apos;s payment settings are a frozen guess. Thaw un-freezes them — with a rules engine,
-            a spending cap, and an emergency brake, and an honest record of <span className="font-serif-em text-[color:var(--gold)]">what didn&apos;t work.</span>
-          </p>
-          <div className="mt-7 flex items-center gap-3">
-            <Button size="lg" onClick={() => start(false)} className="gap-2"><Zap className="h-4 w-4" /> Un-freeze it</Button>
-            <label className="flex cursor-pointer items-center gap-2 text-[13px] text-muted-foreground">
-              <input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} className="accent-[color:var(--brand)]" /> Live · Gemini
-            </label>
-            <Button size="lg" variant="ghost" onClick={() => start(live)}>with the terminal ↓</Button>
+      {/* cockpit — canvas + inspector rail, one screen, no scroll */}
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 py-3 lg:grid-cols-[minmax(0,1fr)_360px]">
+        {/* canvas */}
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-border glass">
+          <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
+            <div className="flex items-center gap-1 rounded-lg border border-border bg-black/20 p-0.5">
+              {VIEWS.map((v) => {
+                const on = view === v.id;
+                return (
+                  <button key={v.id} onClick={() => setView(v.id)}
+                    className={`relative inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors ${on ? "text-[color:var(--accent-foreground)]" : "text-muted-foreground hover:text-foreground"}`}>
+                    {on && <motion.span layoutId="viewpill" className="absolute inset-0 rounded-md bg-[color:var(--accent)]" transition={{ type: "spring", stiffness: 400, damping: 32 }} />}
+                    <v.icon className="relative z-10 h-3.5 w-3.5" /><span className="relative z-10">{v.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <span className="pr-1 text-[11px] text-muted-foreground">
+              {view === "pipeline" ? (running ? "processing…" : started ? "run complete" : "idle") : view === "checkout" ? "the frozen setting, tested live" : "what survived the tests"}
+            </span>
           </div>
-        </motion.section>
-      )}
+          <div className="relative min-h-0 flex-1">
+            {/* all three layers stay mounted (opacity toggle, not unmount) so React Flow measures
+                the canvas once at load and never re-races fitView on a tab switch */}
+            <div className={`absolute inset-0 transition-opacity duration-200 ${view === "pipeline" ? "" : "pointer-events-none opacity-0"}`}>
+              <PipelineGraph event={event} running={running} />
+            </div>
+            <div className={`absolute inset-0 overflow-auto p-5 transition-opacity duration-200 ${view === "checkout" ? "" : "pointer-events-none opacity-0"}`}>
+              <CheckoutAB event={event} rc={active?.rc} rt={active?.rt} />
+            </div>
+            <div className={`absolute inset-0 transition-opacity duration-200 ${view === "memory" ? "" : "pointer-events-none opacity-0"}`}>
+              <MemoryGraph nonce={memNonce} />
+            </div>
+          </div>
+        </section>
 
-      {/* graph */}
-      <motion.section layout className={`rounded-2xl border border-border glass ${started ? "mt-2 h-[440px]" : "mt-6 h-[340px]"} overflow-hidden`}>
-        <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
-          <span className="eyebrow">The pipeline · live</span>
-          <span className="text-[11px] text-muted-foreground">{running ? "processing…" : started ? "run complete" : "idle"}</span>
-        </div>
-        <div className="h-[calc(100%-42px)]"><PipelineGraph event={event} running={running} /></div>
-      </motion.section>
-
-      {/* terminal + signal */}
-      <section className="my-4 grid grid-cols-1 gap-4 lg:grid-cols-[1.35fr_1fr]">
-        <div className="h-[320px]"><Terminal onRun={start} /></div>
-        <div className="flex flex-col gap-4">
+        {/* inspector rail */}
+        <aside className="flex min-h-0 flex-col gap-3">
           {/* latest signal */}
-          <div className="rounded-xl border border-border glass p-4">
+          <div className="shrink-0 rounded-xl border border-border glass p-4">
             <div className="flex items-center gap-2"><TermIcon className="h-3.5 w-3.5 text-muted-foreground" /><span className="eyebrow">Latest signal</span></div>
             {event ? (
-              <motion.div key={event.seq} initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} className="mt-3">
+              <motion.div key={event.seq} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} className="mt-2.5">
                 <div className="text-[15px] font-semibold" style={{ color: tone }}>{label(event.kind)}</div>
-                <div className="mt-1 text-[13px] text-muted-foreground">
+                <div className="mt-1 line-clamp-2 text-[13px] text-muted-foreground">
                   {String(event.reason || event.note || event.headline || event.claim || event.slice || "")}
                 </div>
               </motion.div>
-            ) : <div className="mt-3 text-[13px] text-muted-foreground">Run the pipeline to see the agent think.</div>}
+            ) : <div className="mt-2.5 text-[13px] text-muted-foreground">Press <span className="text-foreground">Un-freeze it</span> to watch the agent think.</div>}
           </div>
+
           {/* money at risk */}
-          <div className="rounded-xl border border-border glass p-4">
+          <div className="shrink-0 rounded-xl border border-border glass p-4">
             <span className="eyebrow">Money at risk</span>
-            <div className="mt-2 mono text-[26px] font-semibold" style={{ color: active && active.loss > 0 ? "var(--harm)" : "var(--foreground)" }}>
-              {rupee(active?.loss ?? 0)} <span className="text-[15px] text-muted-foreground">/ {rupee(active?.cap ?? 0)}</span>
+            <div className="mt-2 mono text-[24px] font-semibold" style={{ color: active && active.loss > 0 ? "var(--harm)" : "var(--foreground)" }}>
+              {rupee(active?.loss ?? 0)} <span className="text-[14px] text-muted-foreground">/ {rupee(active?.cap ?? 0)}</span>
             </div>
             <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/5">
-              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${active ? Math.min(100, (active.loss / (active.cap || 1)) * 100) : 0}%`, background: active && active.loss / (active.cap || 1) > 0.5 ? "var(--harm)" : "var(--brand)" }} />
+              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: pct > 50 ? "var(--harm)" : "var(--brand)" }} />
             </div>
             {active?.rc != null && (
               <div className="mt-3 space-y-1 text-[12px]">
-                <div className="flex justify-between"><span className="text-muted-foreground">control</span><span className="mono">{active.rc.toFixed(1)}%</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">cards-first</span><span className="mono">{active.rt?.toFixed(1)}%</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">control · UPI first</span><span className="mono">{active.rc.toFixed(1)}%</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">cards first</span><span className="mono">{active.rt?.toFixed(1)}%</span></div>
               </div>
             )}
           </div>
-        </div>
-      </section>
 
-      {/* what we're actually testing — the real checkout */}
-      {started && (
-        <motion.section layout initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="mb-4">
-          <div className="mb-3 flex items-baseline gap-3">
-            <span className="eyebrow">What we&apos;re testing</span>
-            <span className="text-[13px] text-muted-foreground">the same checkout, two method orders — <span className="font-serif-em text-[color:var(--gold)]">this</span> is the frozen setting.</span>
-          </div>
-          <CheckoutAB event={event} rc={active?.rc} rt={active?.rt} />
-        </motion.section>
-      )}
-
-      {/* memory — what the agent has learned, as a graph */}
-      {started && (
-        <motion.section layout initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="mb-16 rounded-2xl border border-border glass overflow-hidden">
-          <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
-            <span className="eyebrow">Memory · what survived the tests</span>
-            <span className="text-[11px] text-muted-foreground">every claim traces to a ledger row</span>
-          </div>
-          <div className="h-[380px]"><MemoryGraph nonce={memNonce} /></div>
-        </motion.section>
-      )}
+          {/* terminal — always available */}
+          <div className="min-h-0 flex-1"><Terminal onRun={start} /></div>
+        </aside>
+      </div>
     </div>
   );
 }
