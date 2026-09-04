@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { ShieldCheck, TrendingDown, Brain, AlertTriangle } from "lucide-react";
+import { ShieldCheck, TrendingDown, Brain, AlertTriangle, Check, Radar } from "lucide-react";
 import { API, rupee } from "@/lib/thaw";
 
 type Evidence = {
@@ -11,6 +11,12 @@ type Evidence = {
   cold_tests: number; cold_loss: number;
   experienced_tests: number; experienced_loss: number;
 };
+type Pattern = {
+  slice: string; family: string; verdict: string; stability: string; seeds: number;
+  discovered_pp: number; true_pp: number; match: boolean;
+};
+const pp = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(1)}pp`;
+const vTone = (v: string) => v === "WINS" ? "var(--pos)" : v === "HURT" ? "var(--harm)" : "var(--muted-foreground)";
 
 function Bar({ pct, tone, label, value }: { pct: number; tone: string; label: string; value: string }) {
   return (
@@ -38,29 +44,76 @@ function Card({ icon: Icon, eyebrow, children }: { icon: typeof Brain; eyebrow: 
   );
 }
 
+function PatternPanel({ pats }: { pats: Pattern[] | null }) {
+  const hit = pats ? pats.filter((p) => p.match).length : 0;
+  return (
+    <div className="rounded-xl border border-border glass p-4">
+      <div className="mb-1 flex items-center gap-2">
+        <Radar className="h-3.5 w-3.5 text-[color:var(--brand2)]" /><span className="eyebrow">Patterns the agent extracted — scored against the hidden truth it never saw</span>
+        {pats && <span className="ml-auto mono text-[12px] font-semibold text-[color:var(--pos)]">{hit}/{pats.length} recovered</span>}
+      </div>
+      <div className="mb-3 text-[12px] text-muted-foreground">Each slice run across seeds; the verdict is the agent&apos;s own, from noisy observations. Truth is revealed only to score.</div>
+      {!pats ? (
+        <div className="flex items-center gap-2 py-4 text-[13px] text-muted-foreground"><div className="h-4 w-4 animate-spin rounded-full border-2 border-white/15 border-t-[color:var(--brand)]" /> running the agent across seeds…</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px] border-collapse text-[12.5px]">
+            <thead>
+              <tr className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                <th className="py-1.5 text-left font-medium">slice</th>
+                <th className="text-left font-medium">lever</th>
+                <th className="text-left font-medium">discovered</th>
+                <th className="text-left font-medium">stability</th>
+                <th className="text-left font-medium">truth</th>
+                <th className="text-right font-medium">match</th>
+              </tr>
+            </thead>
+            <tbody className="mono">
+              {pats.map((p, i) => (
+                <tr key={i} className="border-t border-border">
+                  <td className="py-2 text-foreground">{p.slice}</td>
+                  <td className="text-muted-foreground">{p.family}</td>
+                  <td><span className="font-semibold" style={{ color: vTone(p.verdict) }}>{p.verdict}</span> <span className="text-muted-foreground">{pp(p.discovered_pp)}</span></td>
+                  <td className="text-muted-foreground">{p.stability}</td>
+                  <td className="text-muted-foreground">{pp(p.true_pp)}</td>
+                  <td className="text-right">{p.match
+                    ? <span className="inline-flex items-center gap-1 text-[color:var(--pos)]"><Check className="h-3.5 w-3.5" />matched</span>
+                    : <span className="text-[color:var(--harm)]">missed</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ProofView() {
   const [d, setD] = useState<Evidence | null>(null);
+  const [pats, setPats] = useState<Pattern[] | null>(null);
   const [err, setErr] = useState(false);
 
   useEffect(() => {
     let on = true;
     fetch(API + "/evidence").then((r) => r.json()).then((j) => on && setD(j)).catch(() => on && setErr(true));
+    fetch(API + "/patterns").then((r) => r.json()).then((j) => on && setPats(j)).catch(() => {});
     return () => { on = false; };
   }, []);
 
   if (err) return <div className="grid h-full place-items-center text-[13px] text-muted-foreground">couldn&apos;t reach the backend at {API}</div>;
-  if (!d) return (
-    <div className="grid h-full place-items-center">
-      <div className="flex flex-col items-center gap-3 text-[13px] text-muted-foreground">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-white/15 border-t-[color:var(--brand)]" />
-        measuring on the real simulator — 200 trials, 40 tests…
-      </div>
-    </div>
-  );
 
   return (
     <div className="h-full overflow-auto p-5">
-      <div className="mx-auto grid max-w-[860px] grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="mx-auto max-w-[860px] space-y-4">
+        {/* the demonstration: patterns recovered vs the hidden truth */}
+        <PatternPanel pats={pats} />
+        {!d ? (
+          <div className="flex items-center gap-2 rounded-xl border border-border glass p-4 text-[13px] text-muted-foreground">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/15 border-t-[color:var(--brand)]" /> measuring on the real simulator — 200 trials, 40 tests…
+          </div>
+        ) : (
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {/* the headline credibility number */}
         <Card icon={AlertTriangle} eyebrow="Would a naive A/B be safe?">
           <div className="mb-3 text-[13px] leading-relaxed text-muted-foreground">
@@ -117,6 +170,8 @@ export function ProofView() {
             and every number here traces to the ledger, not a slide.
           </div>
         </Card>
+      </div>
+        )}
       </div>
     </div>
   );

@@ -150,6 +150,20 @@ def memory() -> JSONResponse:
     return JSONResponse({"tests": tests, "learnings": learns, "decisions": decisions})
 
 
+_PATTERNS: list | None = None
+
+
+@app.get("/patterns")
+async def patterns() -> JSONResponse:
+    """Proof that patterns are extracted: the verdict the agent discovered per slice,
+    across seeds, scored against the hidden truth. Computed once, cached."""
+    global _PATTERNS
+    if _PATTERNS is None:
+        from .patterns import discover_patterns
+        _PATTERNS = await asyncio.to_thread(discover_patterns, 15)
+    return JSONResponse(_PATTERNS)
+
+
 _EVIDENCE: dict | None = None
 
 

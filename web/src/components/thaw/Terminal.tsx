@@ -24,6 +24,7 @@ const HELP = [
   ["policy", "the boundaries the agent runs inside"],
   ["ledger", "every test and how it ended"],
   ["memory", "what the agent has learned"],
+  ["patterns", "verdicts the agent extracted, scored vs the hidden truth"],
   ["clear", "clear the screen"],
 ];
 
@@ -98,6 +99,16 @@ export function Terminal({ onRun }: { onRun: (live: boolean, seed: number) => vo
         const d = await getJSON<{ learnings: { claim: string }[] }>("/memory");
         if (!d.learnings.length) push(C.m("nothing learned yet — run `simulate`."));
         d.learnings.forEach((l) => push(<>{C.b("✦ ")}{C.m(l.claim)}</>));
+      } else if (name === "patterns") {
+        push(C.m("running the agent across seeds, scoring each verdict vs the hidden truth…"));
+        const ps = await getJSON<{ slice: string; family: string; verdict: string; stability: string; discovered_pp: number; true_pp: number; match: boolean }[]>("/patterns");
+        const ppf = (n: number) => (n >= 0 ? "+" : "") + n.toFixed(1) + "pp";
+        ps.forEach((p) => {
+          const col = p.verdict === "WINS" ? C.g : p.verdict === "HURT" ? C.r : C.m;
+          push(<>{p.match ? C.g("✓ ") : C.r("✗ ")}{C.m(p.slice.padEnd(22))}{C.m(p.family.padEnd(14))}{col(p.verdict.padEnd(5))}{C.m((ppf(p.discovered_pp) + " (" + p.stability + ")").padEnd(15))}{C.m("truth ")}{C.b(ppf(p.true_pp))}</>);
+        });
+        const hit = ps.filter((p) => p.match).length;
+        push(<>{C.g(`${hit}/${ps.length}`)}{C.m(" patterns recovered — discovered from noise, matched to the answer key it never saw")}</>);
       } else if (name === "runs") {
         const rs = await getJSON<Run[]>("/runs");
         if (!rs.length) push(C.m("no runs archived yet — run `simulate` first."));
