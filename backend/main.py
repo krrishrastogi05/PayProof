@@ -37,8 +37,8 @@ async def stream(seed: int = 42, live: int = 0):
     The live run really calls Gemini; the curated replay is the guaranteed demo."""
     path = await asyncio.to_thread(run_live if live else run_demo, seed, 10_000.0)
 
-    fast = {"RUNNING"}
-    weighty = {"BRAKE_PULLED", "KEPT", "NO_DIFFERENCE", "REVERTED", "LEARNED"}
+    fast = {"RUNNING", "RECALLED"}
+    weighty = {"BRAKE_PULLED", "KEPT", "NO_DIFFERENCE", "REVERTED", "LEARNED", "SKIPPED_BY_MEMORY"}
 
     async def gen():
         for event in read_log(path):

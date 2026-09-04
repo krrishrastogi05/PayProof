@@ -13,10 +13,10 @@ import { RunsView } from "@/components/thaw/RunsView";
 import { openStream, rupee, type ThawEvent } from "@/lib/thaw";
 
 const KIND_TONE: Record<string, string> = {
-  WATCHING: "var(--muted-foreground)", THINKING: "var(--violet)", PROPOSED: "var(--violet)",
+  WATCHING: "var(--muted-foreground)", RECALLED: "var(--cyan)", THINKING: "var(--violet)", PROPOSED: "var(--violet)",
   BLOCKED: "var(--harm)", TOO_SMALL: "var(--notice)", CAP_SET: "var(--brand2)",
   RUNNING: "var(--cyan)", BRAKE_PULLED: "var(--harm)", KEPT: "var(--pos)",
-  NO_DIFFERENCE: "var(--muted-foreground)", REVERTED: "var(--notice)", LEARNED: "var(--violet)",
+  NO_DIFFERENCE: "var(--muted-foreground)", SKIPPED_BY_MEMORY: "var(--cyan)", REVERTED: "var(--notice)", LEARNED: "var(--violet)",
 };
 const label = (k: string) => k.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
@@ -51,6 +51,7 @@ export default function Home() {
   const onEvent = useCallback((e: ThawEvent) => {
     setEvent(e); setSimTs((e.sim_ts as number) || 0);
     if (e.test_kind) setTestKind(String(e.test_kind));
+    if (e.kind === "LEARNED") setMemNonce((n) => n + 1); // memory grows live as lessons land
     if (e.kind === "CAP_SET") setActive({ head: String(e.note || ""), loss: 0, cap: (e.max_loss_inr as number) || 0 });
     if (e.kind === "RUNNING" && e.day) setActive({ head: String(e.headline || "running"), loss: (e.realized_loss_inr as number) || 0, cap: (e.max_loss_inr as number) || 1, rc: (e.rate_control as number) * 100, rt: (e.rate_treatment as number) * 100 });
     if (e.kind === "BRAKE_PULLED") setActive((a) => (a ? { ...a, loss: (e.realized_loss_inr as number) ?? a.loss, cap: (e.max_loss_inr as number) ?? a.cap } : a));
@@ -58,6 +59,7 @@ export default function Home() {
     // lifecycle plays out on the checkout; a blocked idea stays on the pipeline.
     const toCheckout = new Set(["CAP_SET", "RUNNING", "KEPT", "BRAKE_PULLED", "REVERTED", "NO_DIFFERENCE"]);
     if (toCheckout.has(e.kind)) setView("checkout");
+    else if (e.kind === "SKIPPED_BY_MEMORY") setView("memory"); // memory made the call — show it
   }, []);
 
   const start = useCallback((liveRun: boolean, seed = 42) => {

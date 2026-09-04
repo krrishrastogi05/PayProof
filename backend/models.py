@@ -59,6 +59,7 @@ class TestStatus(str, Enum):
     """The lifecycle. Six ways to end without a winner — each is a demo beat."""
 
     proposed = "PROPOSED"
+    skipped_by_memory = "SKIPPED_BY_MEMORY"  # memory already knows the answer; no traffic spent
     rules_check = "RULES_CHECK"
     blocked = "BLOCKED"
     feasibility_check = "FEASIBILITY_CHECK"

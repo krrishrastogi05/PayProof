@@ -85,6 +85,14 @@ def record_decision(conn: sqlite3.Connection, row: dict[str, Any]) -> None:
     conn.commit()
 
 
+def record_learning(conn: sqlite3.Connection, row: dict[str, Any]) -> None:
+    """Persist what a concluded test taught — this is the memory the next decision reads."""
+    cols = ", ".join(row)
+    marks = ", ".join(f":{c}" for c in row)
+    conn.execute(f"INSERT INTO learnings ({cols}) VALUES ({marks})", row)
+    conn.commit()
+
+
 def all_tests(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     return [dict(r) for r in conn.execute("SELECT * FROM tests ORDER BY registered_at")]
 

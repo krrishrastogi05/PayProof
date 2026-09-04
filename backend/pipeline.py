@@ -7,8 +7,8 @@ Where its numbers come from: rules + feasibility + runner, all reading policy.ya
 
 from __future__ import annotations
 
+import hashlib
 import sqlite3
-import uuid
 from datetime import datetime, timezone
 
 from .clock import Clock
@@ -31,7 +31,10 @@ def evaluate(proposal: Proposal, *, policy: Policy, world: World, log: EventLog,
              degraded: str | None = None) -> tuple[TestStatus, str, Feasibility | None]:
     """Emit cards for rules + feasibility and persist the outcome. Returns
     (status, test_id, feasibility) so an admitted test can then be run."""
-    test_id = uuid.uuid4().hex[:8]
+    # Deterministic per (run, proposal): the A/B assignment hashes off test_id, so a
+    # random id would make every run's outcome different — the demo must be reproducible.
+    seed_str = f"{run_id}|{proposal.what_changed}|{proposal.slice.model_dump_json()}|{proposal.test_kind.value}|{proposal.traffic_share}"
+    test_id = hashlib.sha256(seed_str.encode()).hexdigest()[:8]
     log.append("PROPOSED", test_id=test_id, headline=proposal.what_changed,
                slice=proposal.slice.label(), traffic_share=proposal.traffic_share,
                why=proposal.why, proposed_by=proposed_by, degraded=degraded)
@@ -76,7 +79,18 @@ def evaluate(proposal: Proposal, *, policy: Policy, world: World, log: EventLog,
 def conduct(proposal: Proposal, *, policy: Policy, world: World, log: EventLog,
             conn: sqlite3.Connection, run_id: str, clock: Clock,
             proposed_by: str = "curated", degraded: str | None = None) -> TestStatus:
-    """Evaluate, and run it if it's admitted. The whole life of one proposal."""
+    """Evaluate, and run it if it's admitted. The whole life of one proposal.
+    Memory is consulted first: if the agent already concluded this exact test, it
+    reuses that answer instead of spending traffic to relearn it."""
+    from .recall import recall_for
+    mem = recall_for(conn, proposal.slice, proposal.test_kind)
+    log.append("RECALLED", slice=proposal.slice.label(), headline=proposal.what_changed,
+               seen=mem["seen"], verdict=mem["verdict"], note=mem["note"])
+    if mem["skip"]:
+        log.append("SKIPPED_BY_MEMORY", slice=proposal.slice.label(), headline=proposal.what_changed,
+                   verdict=mem["verdict"], reason=mem["note"])
+        return TestStatus.skipped_by_memory
+
     status, test_id, feas = evaluate(proposal, policy=policy, world=world, log=log,
                                      conn=conn, run_id=run_id, proposed_by=proposed_by, degraded=degraded)
     if status is TestStatus.admitted and feas is not None:

@@ -21,11 +21,11 @@ export const rupee = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN"
 
 // which pipeline stage a card belongs to
 export const STAGE_OF: Record<string, string> = {
-  WATCHING: "watcher", THINKING: "reasoner", PROPOSED: "reasoner",
+  WATCHING: "watcher", RECALLED: "reasoner", THINKING: "reasoner", PROPOSED: "reasoner",
   BLOCKED: "rules", TOO_SMALL: "feasibility", CAP_SET: "feasibility",
   RUNNING: "runner", BRAKE_PULLED: "scoreboard", KEPT: "scoreboard",
   NO_DIFFERENCE: "scoreboard", STOPPED_BAD_SPLIT: "scoreboard",
-  REVERTED: "memory", LEARNED: "memory",
+  SKIPPED_BY_MEMORY: "memory", REVERTED: "memory", LEARNED: "memory",
 };
 
 export const STAGE_ORDER = ["watcher", "reasoner", "rules", "feasibility", "runner", "scoreboard", "memory"];

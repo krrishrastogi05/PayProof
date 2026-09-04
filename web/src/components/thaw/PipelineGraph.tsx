@@ -53,6 +53,8 @@ function detailFor(e: ThawEvent): { detail?: string; tone?: string } {
     case "LEARNED": return { detail: "written to memory", tone: "var(--violet)" };
     case "PROPOSED": return { detail: e.proposed_by === "gemini" ? "Gemini ✓" : "local fallback", tone: "var(--violet)" };
     case "THINKING": return { detail: `recall ${e.history ?? 0} results`, tone: "var(--violet)" };
+    case "RECALLED": return { detail: n("seen") > 0 ? `memory: ${e.verdict}` : "memory checked", tone: "var(--cyan)" };
+    case "SKIPPED_BY_MEMORY": return { detail: "skipped · already known", tone: "var(--cyan)" };
     default: return {};
   }
 }
@@ -72,7 +74,7 @@ export function PipelineGraph({ event, running }: { event: ThawEvent | null; run
     const idx = STAGE_ORDER.indexOf(sId);
     const { detail, tone } = detailFor(event);
     const subsOn = new Set<string>();
-    if (sId === "reasoner") { subsOn.add("gemini"); subsOn.add("recall"); }
+    if (sId === "reasoner") { subsOn.add("recall"); if (event.kind !== "RECALLED") subsOn.add("gemini"); }
     if (sId === "feasibility") subsOn.add("policy");
     if (sId === "runner") { subsOn.add("simulator"); if (event.kind === "BRAKE_PULLED") subsOn.add("brake"); }
 

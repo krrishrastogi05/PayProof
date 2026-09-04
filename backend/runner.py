@@ -16,7 +16,7 @@ from .clock import Clock
 from .config import Policy
 from .eventlog import EventLog
 from .feasibility import Feasibility
-from .ledger import record_decision, update_test
+from .ledger import record_decision, record_learning, update_test
 from .models import Proposal, TestKind, TestStatus
 from .scoreboard import analyze, is_a_winner, is_harmful, split_is_healthy
 from .sim.world import World, avg_order_inr
@@ -90,7 +90,10 @@ def run_test(proposal: Proposal, feas: Feasibility, *, policy: Policy, world: Wo
         if not split_ok:
             end = TestStatus.stopped_bad_split
             break
-        if loss + avg_order > cap or is_harmful(a_harm, thr_pp, _MIN_PER_GROUP, seen):
+        # Stop with a full margin below the cap: the confidence-bounded loss can jump
+        # within a batch, so leave headroom (one order, or 12% of the cap) — the recorded
+        # loss must never exceed the cap. That headline safety claim has to hold every seed.
+        if loss > cap - max(avg_order, 0.12 * cap) or is_harmful(a_harm, thr_pp, _MIN_PER_GROUP, seen):
             end = TestStatus.found_harmful
             break
         if seen >= _MIN_PER_GROUP and is_a_winner(a, policy.promote.require_range_excludes_zero):
@@ -119,17 +122,18 @@ def _finish(end, proposal, test_id, n, w, loss, cap, clock, log, conn, policy) -
     update_test(conn, test_id, status=end.value, realized_loss_inr=loss,
                 cap_broken=int(loss > cap))
 
+    claim = None
     if end == TestStatus.found_harmful:
         log.append("BRAKE_PULLED", test_id=test_id, realized_loss_inr=loss, max_loss_inr=cap,
                    sim_days=round(clock.now() / _SECONDS_PER_DAY, 1),
                    reason=f"treatment failures rose past the brake — halted; ₹{loss:,.0f} lost of ₹{cap:,.0f} allowed")
         log.append("REVERTED", test_id=test_id, note=f"settings rolled back to {revert_to}")
-        log.append("LEARNED", test_id=test_id, claim=f"{change} HURTS {sl} — do not repeat")
+        claim = f"{change} HURTS {sl} — do not repeat"
     elif end == TestStatus.found_winner:
         log.append("KEPT", test_id=test_id, uplift_pp=round(a.uplift * 100, 1),
                    ci_low_pp=round(a.ci_low * 100, 1), ci_high_pp=round(a.ci_high * 100, 1), ci=ci,
                    note=f"{change} wins by {a.uplift*100:+.1f}pp, range {ci} excludes zero")
-        log.append("LEARNED", test_id=test_id, claim=f"{change} WINS for {sl}")
+        claim = f"{change} WINS for {sl}"
     elif end == TestStatus.stopped_bad_split:
         log.append("BRAKE_PULLED", test_id=test_id, realized_loss_inr=loss, max_loss_inr=cap,
                    reason="assignment split broke — result would be meaningless, halted")
@@ -137,5 +141,13 @@ def _finish(end, proposal, test_id, n, w, loss, cap, clock, log, conn, policy) -
         log.append("NO_DIFFERENCE", test_id=test_id, uplift_pp=round(a.uplift * 100, 1),
                    ci_low_pp=round(a.ci_low * 100, 1), ci_high_pp=round(a.ci_high * 100, 1), ci=ci,
                    note=f"no difference found — range {ci} includes zero; not promoted")
-        log.append("LEARNED", test_id=test_id, claim=f"{change} is a wash for {sl}")
+        claim = f"{change} is a wash for {sl}"
+
+    if claim is not None:
+        # this is the memory a later decision will read back (recall_for)
+        confidence = round(min(1.0, abs(a.uplift) / max(0.02, proposal.effect_to_detect_pp / 100)), 2)
+        record_learning(conn, {"test_id": test_id, "claim": claim,
+                               "slice_json": proposal.slice.model_dump_json(),
+                               "confidence_from_stats": confidence})
+        log.append("LEARNED", test_id=test_id, claim=claim, confidence=confidence)
     return end

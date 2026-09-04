@@ -10,7 +10,29 @@ from __future__ import annotations
 
 import sqlite3
 
-from .models import Slice
+from .models import Slice, TestKind
+
+_VERDICT = {"FOUND_WINNER": "won", "FOUND_HARMFUL": "HURT", "NO_DIFFERENCE": "wash"}
+_NOTE = {
+    "won": "memory: this won here before — keep it, no need to re-spend traffic",
+    "HURT": "memory: this HURT here before — not relearning it",
+    "wash": "memory: this was a wash before — no point re-testing",
+}
+
+
+def recall_for(conn: sqlite3.Connection, slice_: Slice, kind: TestKind) -> dict:
+    """What memory holds for this EXACT segment + lever, checked before we act.
+    If the agent already concluded this test, it should not spend traffic to relearn it."""
+    rows = conn.execute(
+        "SELECT status FROM tests WHERE slice_json = ? AND test_kind = ? "
+        "AND status IN ('FOUND_WINNER','FOUND_HARMFUL','NO_DIFFERENCE') "
+        "ORDER BY registered_at DESC", (slice_.model_dump_json(), kind.value)
+    ).fetchall()
+    if not rows:
+        return {"seen": 0, "verdict": None, "skip": False,
+                "note": "no prior signal for this segment — testing fresh"}
+    verdict = _VERDICT[rows[0]["status"]]
+    return {"seen": len(rows), "verdict": verdict, "skip": True, "note": _NOTE[verdict]}
 
 
 def relevant_history(conn: sqlite3.Connection, slice_: Slice, limit: int = 4) -> list[str]:

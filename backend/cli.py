@@ -71,6 +71,14 @@ def _proposals() -> list[Proposal]:
         P(what_changed="Wait 6h, not 30m, before the first retry — mobile new buyers (₹1k–3k)",
           test_kind=TestKind.retry_timing, slice=honest, traffic_share=0.10,
           metric_to_watch="recovery rate", why="early retries fail while the bank is still cooling off", effect_to_detect_pp=6),
+        # Second look: the watcher re-flags segments already tested. Memory answers
+        # before any traffic is spent — the experienced agent skips what it knows.
+        P(what_changed="Re-check cards first for desktop new buyers (₹1k–3k)",
+          test_kind=TestKind.payment_method_order, slice=harm, traffic_share=0.10,
+          metric_to_watch="checkout completion", why="periodic re-check", effect_to_detect_pp=5),
+        P(what_changed="Re-check cards first for mobile returning buyers (₹1k–3k)",
+          test_kind=TestKind.payment_method_order, slice=win, traffic_share=0.10,
+          metric_to_watch="checkout completion", why="periodic re-check", effect_to_detect_pp=7),
         # Beat 4 — too small to measure.
         P(what_changed="Show cards first for desktop returning buyers (₹1k–3k)",
           test_kind=TestKind.payment_method_order, slice=small, traffic_share=0.10,
