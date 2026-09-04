@@ -48,7 +48,7 @@ def evaluate(proposal: Proposal, *, policy: Policy, world: World, log: EventLog,
     row["rules_verdict"] = "allowed" if verdict.allowed else "blocked"
     row["rules_reason"] = verdict.reason
     if not verdict.allowed:
-        log.append("BLOCKED", test_id=test_id, reason=verdict.reason)
+        log.append("BLOCKED", test_id=test_id, reason=verdict.reason, touches=proposal.touches or [])
         row["status"] = TestStatus.blocked.value
         record_test(conn, row)
         return TestStatus.blocked, test_id, None

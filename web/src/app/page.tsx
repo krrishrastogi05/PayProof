@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Zap, Terminal as TermIcon, Radio, Workflow, CreditCard, Brain } from "lucide-react";
+import { Zap, Terminal as TermIcon, Radio, Workflow, CreditCard, Brain, BarChart3, ShieldAlert, OctagonX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PipelineGraph } from "@/components/thaw/PipelineGraph";
 import { Terminal } from "@/components/thaw/Terminal";
 import { CheckoutAB } from "@/components/thaw/Checkout";
 import { MemoryGraph } from "@/components/thaw/MemoryGraph";
+import { ProofView } from "@/components/thaw/ProofView";
 import { openStream, rupee, type ThawEvent } from "@/lib/thaw";
 
 const KIND_TONE: Record<string, string> = {
@@ -18,11 +19,12 @@ const KIND_TONE: Record<string, string> = {
 };
 const label = (k: string) => k.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
-type View = "pipeline" | "checkout" | "memory";
+type View = "pipeline" | "checkout" | "memory" | "proof";
 const VIEWS: { id: View; label: string; icon: typeof Workflow }[] = [
   { id: "pipeline", label: "Pipeline", icon: Workflow },
   { id: "checkout", label: "Checkout", icon: CreditCard },
   { id: "memory", label: "Memory", icon: Brain },
+  { id: "proof", label: "Proof", icon: BarChart3 },
 ];
 
 export default function Home() {
@@ -47,9 +49,11 @@ export default function Home() {
     setEvent(e); setSimTs((e.sim_ts as number) || 0);
     if (e.kind === "CAP_SET") setActive({ head: String(e.note || ""), loss: 0, cap: (e.max_loss_inr as number) || 0 });
     if (e.kind === "RUNNING" && e.day) setActive({ head: String(e.headline || "running"), loss: (e.realized_loss_inr as number) || 0, cap: (e.max_loss_inr as number) || 1, rc: (e.rate_control as number) * 100, rt: (e.rate_treatment as number) * 100 });
-    // pull the operator's eye to the surface that just changed
-    if (e.kind === "RUNNING" || e.kind === "CAP_SET") setView("checkout");
-    else if (e.kind === "KEPT" || e.kind === "REVERTED" || e.kind === "LEARNED") setView("memory");
+    if (e.kind === "BRAKE_PULLED") setActive((a) => (a ? { ...a, loss: (e.realized_loss_inr as number) ?? a.loss, cap: (e.max_loss_inr as number) ?? a.cap } : a));
+    // pull the operator's eye to the surface that just changed: the whole test
+    // lifecycle plays out on the checkout; a blocked idea stays on the pipeline.
+    const toCheckout = new Set(["CAP_SET", "RUNNING", "KEPT", "BRAKE_PULLED", "REVERTED", "NO_DIFFERENCE"]);
+    if (toCheckout.has(e.kind)) setView("checkout");
   }, []);
 
   const start = useCallback((liveRun: boolean, seed = 42) => {
@@ -64,6 +68,7 @@ export default function Home() {
   const fmtSim = (s: number) => `${Math.floor(s / 86400)}d ${Math.floor((s % 86400) / 3600)}h`;
   const tone = event ? KIND_TONE[event.kind] || "var(--foreground)" : "var(--foreground)";
   const pct = active ? Math.min(100, (active.loss / (active.cap || 1)) * 100) : 0;
+  const braked = event?.kind === "BRAKE_PULLED";
 
   return (
     <div className="relative z-10 mx-auto flex h-screen w-full max-w-[1600px] flex-col overflow-hidden px-5">
@@ -108,7 +113,7 @@ export default function Home() {
               })}
             </div>
             <span className="pr-1 text-[11px] text-muted-foreground">
-              {view === "pipeline" ? (running ? "processing…" : started ? "run complete" : "idle") : view === "checkout" ? "the frozen setting, tested live" : "what survived the tests"}
+              {view === "pipeline" ? (running ? "processing…" : started ? "run complete" : "idle") : view === "checkout" ? "the frozen setting, tested live" : view === "memory" ? "what survived the tests" : "measured on the real simulator"}
             </span>
           </div>
           <div className="relative min-h-0 flex-1">
@@ -123,40 +128,62 @@ export default function Home() {
             <div className={`absolute inset-0 transition-opacity duration-200 ${view === "memory" ? "" : "pointer-events-none opacity-0"}`}>
               <MemoryGraph nonce={memNonce} />
             </div>
+            {view === "proof" && <div className="absolute inset-0"><ProofView /></div>}
           </div>
         </section>
 
         {/* inspector rail */}
         <aside className="flex min-h-0 flex-col gap-3">
-          {/* latest signal */}
-          <div className="shrink-0 rounded-xl border border-border glass p-4">
-            <div className="flex items-center gap-2"><TermIcon className="h-3.5 w-3.5 text-muted-foreground" /><span className="eyebrow">Latest signal</span></div>
-            {event ? (
-              <motion.div key={event.seq} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} className="mt-2.5">
-                <div className="text-[15px] font-semibold" style={{ color: tone }}>{label(event.kind)}</div>
-                <div className="mt-1 line-clamp-2 text-[13px] text-muted-foreground">
-                  {String(event.reason || event.note || event.headline || event.claim || event.slice || "")}
+          {/* latest signal — with a distinct spotlight for the two safety beats */}
+          {event?.kind === "BLOCKED" ? (
+            <motion.div key={event.seq} initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}
+              className="shrink-0 rounded-xl border border-[color:var(--harm)]/40 bg-[color:var(--harm)]/8 p-4">
+              <div className="flex items-center gap-2"><ShieldAlert className="h-4 w-4 text-[color:var(--harm)]" /><span className="eyebrow text-[color:var(--harm)]">Refused · rules engine</span></div>
+              <div className="mt-2 text-[15px] font-semibold text-[color:var(--harm)]">Blocked before any spend</div>
+              <div className="mt-1 text-[13px] text-muted-foreground">{String(event.reason || event.headline || "")}</div>
+              {Array.isArray(event.touches) && (event.touches as string[]).length > 0 && (
+                <div className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-[color:var(--harm)]/30 bg-black/20 px-2 py-1 text-[11px] mono text-[color:var(--harm)]">
+                  <OctagonX className="h-3 w-3" /> {(event.touches as string[]).join(" · ")}
                 </div>
-              </motion.div>
-            ) : <div className="mt-2.5 text-[13px] text-muted-foreground">Press <span className="text-foreground">Un-freeze it</span> to watch the agent think.</div>}
-          </div>
+              )}
+            </motion.div>
+          ) : (
+            <div className="shrink-0 rounded-xl border border-border glass p-4">
+              <div className="flex items-center gap-2"><TermIcon className="h-3.5 w-3.5 text-muted-foreground" /><span className="eyebrow">Latest signal</span></div>
+              {event ? (
+                <motion.div key={event.seq} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} className="mt-2.5">
+                  <div className="text-[15px] font-semibold" style={{ color: tone }}>{label(event.kind)}</div>
+                  <div className="mt-1 line-clamp-2 text-[13px] text-muted-foreground">
+                    {String(event.reason || event.note || event.headline || event.claim || event.slice || "")}
+                  </div>
+                </motion.div>
+              ) : <div className="mt-2.5 text-[13px] text-muted-foreground">Press <span className="text-foreground">Un-freeze it</span> to watch the agent think.</div>}
+            </div>
+          )}
 
-          {/* money at risk */}
-          <div className="shrink-0 rounded-xl border border-border glass p-4">
-            <span className="eyebrow">Money at risk</span>
+          {/* money at risk — flips to the brake beat when the cap defends the merchant */}
+          <motion.div animate={braked ? { boxShadow: ["0 0 0 0 rgba(255,91,86,0)", "0 0 0 3px rgba(255,91,86,.35)", "0 0 0 0 rgba(255,91,86,0)"] } : {}}
+            transition={{ duration: 0.9, repeat: braked ? 1 : 0 }}
+            className={`shrink-0 rounded-xl border p-4 ${braked ? "border-[color:var(--harm)]/40 bg-[color:var(--harm)]/8" : "border-border glass"}`}>
+            <div className="flex items-center justify-between">
+              <span className="eyebrow">Money at risk</span>
+              {braked && <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[color:var(--harm)]"><OctagonX className="h-3 w-3" /> BRAKE FIRED</span>}
+            </div>
             <div className="mt-2 mono text-[24px] font-semibold" style={{ color: active && active.loss > 0 ? "var(--harm)" : "var(--foreground)" }}>
-              {rupee(active?.loss ?? 0)} <span className="text-[14px] text-muted-foreground">/ {rupee(active?.cap ?? 0)}</span>
+              {rupee(active?.loss ?? 0)} <span className="text-[14px] text-muted-foreground">/ {rupee(active?.cap ?? 0)} cap</span>
             </div>
             <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/5">
-              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: pct > 50 ? "var(--harm)" : "var(--brand)" }} />
+              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: pct > 50 || braked ? "var(--harm)" : "var(--brand)" }} />
             </div>
-            {active?.rc != null && (
+            {braked ? (
+              <div className="mt-2.5 text-[12px] text-muted-foreground">Halted at <span className="text-[color:var(--harm)]">{rupee(active?.loss ?? 0)}</span> — the cap allowed up to {rupee(active?.cap ?? 0)}. Reverted to UPI-first.</div>
+            ) : active?.rc != null && (
               <div className="mt-3 space-y-1 text-[12px]">
                 <div className="flex justify-between"><span className="text-muted-foreground">control · UPI first</span><span className="mono">{active.rc.toFixed(1)}%</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">cards first</span><span className="mono">{active.rt?.toFixed(1)}%</span></div>
               </div>
             )}
-          </div>
+          </motion.div>
 
           {/* terminal — always available */}
           <div className="min-h-0 flex-1"><Terminal onRun={start} /></div>
