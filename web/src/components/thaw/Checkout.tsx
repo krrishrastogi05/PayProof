@@ -1,10 +1,10 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, CreditCard, Landmark, ShieldCheck, Clock, RefreshCw } from "lucide-react";
+import { Check, Landmark, ShieldCheck, Clock, RefreshCw } from "lucide-react";
 import type { ThawEvent } from "@/lib/thaw";
 
-/* ---------- payment method logos (real brand marks via CDN, crafted fallbacks) ---------- */
+/* ---------- payment method logos ---------- */
 function CdnLogo({ slug, color, alt }: { slug: string; color?: string; alt: string }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
@@ -12,12 +12,32 @@ function CdnLogo({ slug, color, alt }: { slug: string; color?: string; alt: stri
       className="h-4 w-4" width={16} height={16} />
   );
 }
+// the real UPI mark: two diagonal arrows (orange, green) beside the UPI wordmark
+function UpiMark() {
+  return (
+    <svg viewBox="0 0 46 20" className="h-3.5 w-auto" role="img" aria-label="UPI">
+      <path d="M2 2h5l-3 16H1z" fill="#E97626" />
+      <path d="M7.5 2h5l-3 16h-5z" fill="#0C8A3E" />
+      <text x="15.5" y="15.5" fontFamily="Arial, Helvetica, sans-serif" fontWeight="700" fontSize="14" fill="#0F2552">UPI</text>
+    </svg>
+  );
+}
+// mastercard's interlocked circles — instantly reads as "cards"
+function CardMark() {
+  return (
+    <svg viewBox="0 0 30 20" className="h-3.5 w-auto" role="img" aria-label="Cards">
+      <circle cx="12" cy="10" r="7.5" fill="#EB001B" />
+      <circle cx="18" cy="10" r="7.5" fill="#F79E1B" />
+      <path d="M15 4.4a7.5 7.5 0 000 11.2 7.5 7.5 0 000-11.2z" fill="#FF5F00" />
+    </svg>
+  );
+}
 const METHODS: Record<string, { label: string; logo: React.ReactNode; tint: string }> = {
-  upi: { label: "UPI", tint: "#0b7d3c", logo: <span className="mono text-[9px] font-bold tracking-tight"><span style={{ color: "#f36f21" }}>U</span><span style={{ color: "#0b7d3c" }}>P</span><span style={{ color: "#0b7d3c" }}>I</span></span> },
+  upi: { label: "UPI", tint: "#0b7d3c", logo: <UpiMark /> },
   gpay: { label: "Google Pay", tint: "#4285F4", logo: <CdnLogo slug="googlepay" alt="Google Pay" /> },
   phonepe: { label: "PhonePe", tint: "#5F259F", logo: <CdnLogo slug="phonepe" color="5F259F" alt="PhonePe" /> },
   paytm: { label: "Paytm", tint: "#00BAF2", logo: <CdnLogo slug="paytm" color="00BAF2" alt="Paytm" /> },
-  card: { label: "Cards", tint: "#1a1f36", logo: <CreditCard className="h-4 w-4 text-[#1a1f36]" /> },
+  card: { label: "Cards", tint: "#1a1f36", logo: <CardMark /> },
   netbanking: { label: "Netbanking", tint: "#334155", logo: <Landmark className="h-4 w-4 text-slate-600" /> },
 };
 const UPI_FIRST = ["upi", "gpay", "phonepe", "card", "netbanking"];
@@ -50,7 +70,7 @@ function Checkout({ order, amount, rate, state, tag, tagTone }: {
             const meta = METHODS[m];
             return (
               <div key={m} className={`flex items-center gap-2.5 rounded-lg border px-2.5 py-2 ${i === 0 ? "border-[#3395ff]/40 bg-[#3395ff]/5" : "border-black/5"}`}>
-                <span className="grid h-6 w-6 place-items-center rounded-md bg-white ring-1 ring-black/5">{meta.logo}</span>
+                <span className="grid h-6 min-w-6 place-items-center rounded-md bg-white px-1 ring-1 ring-black/5">{meta.logo}</span>
                 <span className="text-[12.5px] font-medium">{meta.label}</span>
                 {i === 0 && <span className="ml-auto text-[10px] font-semibold text-[#3395ff]">shown first</span>}
               </div>
