@@ -21,7 +21,7 @@ from .config import POLICY_PATH, load_policy
 from .eventlog import read_log
 from .ledger import all_tests, connect
 
-app = FastAPI(title="Thaw")
+app = FastAPI(title="PayProof")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 FRONTEND = Path(__file__).resolve().parent.parent / "frontend" / "index.html"
 

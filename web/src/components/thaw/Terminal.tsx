@@ -53,13 +53,13 @@ export function Terminal({ onRun }: { onRun: (live: boolean, seed: number, exp?:
   const push = (node: ReactNode) => setLines((l) => [...l, { id: idRef.current++, node }]);
   useEffect(() => { bodyRef.current?.scrollTo({ top: 1e9 }); }, [lines]);
   useEffect(() => {
-    push(<>{C.m("Thaw shell · type ")}{C.b("help")}{C.m(" to start.")}</>);
+    push(<>{C.m("PayProof shell · type ")}{C.b("help")}{C.m(" to start.")}</>);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function run(raw: string) {
     const cmd = raw.trim();
-    push(<><span className="text-[color:var(--brand2)]">thaw ❯</span> <span className="text-foreground">{cmd}</span></>);
+    push(<><span className="text-[color:var(--brand2)]">payproof ❯</span> <span className="text-foreground">{cmd}</span></>);
     if (!cmd) return;
     const [name, ...args] = cmd.split(/\s+/);
     try {
@@ -199,12 +199,12 @@ export function Terminal({ onRun }: { onRun: (live: boolean, seed: number, exp?:
     <div className="flex h-full flex-col overflow-hidden rounded-xl border border-border bg-[#070b1c]/80">
       <div className="flex items-center gap-2 border-b border-border px-3.5 py-2">
         <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" /><span className="h-2.5 w-2.5 rounded-full bg-[#febc2e]" /><span className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
-        <span className="ml-2 text-[11px] text-muted-foreground mono">thaw — shell</span>
+        <span className="ml-2 text-[11px] text-muted-foreground mono">payproof — shell</span>
       </div>
       <div ref={bodyRef} className="mono flex-1 space-y-0.5 overflow-auto px-4 py-3 text-[12.5px] leading-relaxed" onClick={() => inRef.current?.focus()}>
         {lines.map((l) => <div key={l.id} className="whitespace-pre-wrap">{l.node}</div>)}
         <div className="flex items-center gap-2">
-          <span className="text-[color:var(--brand2)]">thaw ❯</span>
+          <span className="text-[color:var(--brand2)]">payproof ❯</span>
           <input ref={inRef} value={val} spellCheck={false} autoFocus
             onChange={(e) => setVal(e.target.value)}
             onKeyDown={(e) => {

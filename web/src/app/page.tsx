@@ -81,7 +81,7 @@ export default function Home() {
       {/* header — brand, clocks, run controls */}
       <header className="flex shrink-0 items-center gap-4 border-b border-border py-3">
         <div className="flex items-baseline gap-1 text-[19px] font-semibold tracking-tight">
-          Thaw<span className="font-serif-em text-[color:var(--gold)]">.</span>
+          PayProof<span className="font-serif-em text-[color:var(--gold)]">.</span>
         </div>
         <span className="hidden border-l border-border pl-4 text-[13px] text-muted-foreground sm:inline">Acme Electronics</span>
         <span className="hidden text-[12px] text-muted-foreground md:inline">· UPI shown first on mobile, set 19 months ago, never re-tested</span>

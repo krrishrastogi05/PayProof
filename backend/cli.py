@@ -181,7 +181,7 @@ def run_live(seed: int = 42, speed: float = 10_000.0) -> str:
 
 
 def render(path: str) -> None:
-    print(f"\n{C['bold']}THAW{C['off']}  Acme Electronics   mode: CANARY   ● watching\n")
+    print(f"\n{C['bold']}PAYPROOF{C['off']}  Acme Electronics   mode: CANARY   ● watching\n")
     for e in read_log(path):
         kind = e["kind"]
         if kind == "WATCHING":

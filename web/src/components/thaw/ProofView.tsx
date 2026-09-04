@@ -122,10 +122,10 @@ export function ProofView() {
           </div>
           <div className="space-y-3">
             <Bar pct={d.fp_naive} tone="var(--harm)" label="Naive A/B (peek & ship)" value={`${d.fp_naive}%`} />
-            <Bar pct={d.fp_sequential} tone="var(--pos)" label="Thaw (sequential test)" value={`${d.fp_sequential}%`} />
+            <Bar pct={d.fp_sequential} tone="var(--pos)" label="PayProof (sequential test)" value={`${d.fp_sequential}%`} />
           </div>
           <div className="mt-3 text-[12px] text-muted-foreground">
-            Same data, same peeking. Thaw&apos;s sequential boundary is <span className="text-foreground">~{Math.round(d.fp_naive / d.fp_sequential)}× less likely</span> to ship a phantom win.
+            Same data, same peeking. PayProof&apos;s sequential boundary is <span className="text-foreground">~{Math.round(d.fp_naive / d.fp_sequential)}× less likely</span> to ship a phantom win.
           </div>
         </Card>
 
@@ -165,7 +165,7 @@ export function ProofView() {
         {/* the thesis */}
         <Card icon={TrendingDown} eyebrow="Why it matters">
           <div className="text-[13px] leading-relaxed text-muted-foreground">
-            A frozen setting is a silent, unbounded bet. Thaw turns it into a <span className="text-foreground">bounded experiment</span>:
+            A frozen setting is a silent, unbounded bet. PayProof turns it into a <span className="text-foreground">bounded experiment</span>:
             weak evidence stops a test, strong evidence promotes it, an independent brake caps the downside in rupees —
             and every number here traces to the ledger, not a slide.
           </div>

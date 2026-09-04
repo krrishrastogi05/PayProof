@@ -53,7 +53,7 @@ def _markdown(run: dict[str, Any], levers: dict[str, Any], learnings: list[str],
                f"{run['cap_broken']} cap breaches")
     lev = " · ".join(f"{k} {v}" for k, v in levers.items())
     lines = [
-        f"# Thaw run report · {run['run_id']} · seed {run['seed']}",
+        f"# PayProof run report · {run['run_id']} · seed {run['seed']}",
         f"{run['created_at']} · {mode} · sim horizon {days}d",
         "",
         "## Verdict",

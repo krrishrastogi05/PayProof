@@ -9,7 +9,7 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 const instrument = Instrument_Serif({ variable: "--font-instrument", weight: "400", style: ["normal", "italic"], subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Thaw — un-freeze your payment settings",
+  title: "PayProof — prove every payment change before it ships",
   description: "An agent that safely re-tests a merchant's frozen payment settings. Razorpay AI Buildathon.",
 };
 
