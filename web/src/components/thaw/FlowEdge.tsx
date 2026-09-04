@@ -3,6 +3,8 @@
 import { BaseEdge, getBezierPath, type EdgeProps } from "@xyflow/react";
 
 export function FlowEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data }: EdgeProps) {
+  // before the flow container is measured, coords can be NaN — skip rather than emit NaN SVG
+  if (![sourceX, sourceY, targetX, targetY].every(Number.isFinite)) return null;
   const [path] = getBezierPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, curvature: 0.35 });
   const live = Boolean((data as { live?: boolean } | undefined)?.live);
   const stroke = live ? "var(--brand2)" : "var(--brand)";

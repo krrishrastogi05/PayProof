@@ -63,6 +63,11 @@ def _proposals() -> list[Proposal]:
         P(what_changed="Show cards first for mobile new buyers (₹1k–3k)",
           test_kind=TestKind.payment_method_order, slice=honest, traffic_share=0.10,
           metric_to_watch="checkout completion", why="unclear signal, worth checking", effect_to_detect_pp=5),
+        # A different family: retry timing. Waiting longer before the first retry
+        # recovers more failed charges for mobile new buyers — the agent generalizes.
+        P(what_changed="Wait 6h, not 30m, before the first retry — mobile new buyers (₹1k–3k)",
+          test_kind=TestKind.retry_timing, slice=honest, traffic_share=0.10,
+          metric_to_watch="recovery rate", why="early retries fail while the bank is still cooling off", effect_to_detect_pp=6),
         # Beat 4 — too small to measure.
         P(what_changed="Show cards first for desktop returning buyers (₹1k–3k)",
           test_kind=TestKind.payment_method_order, slice=small, traffic_share=0.10,

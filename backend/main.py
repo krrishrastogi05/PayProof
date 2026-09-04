@@ -105,23 +105,24 @@ def memory() -> JSONResponse:
         "SELECT test_id, decision, uplift, ci_low, ci_high, reason FROM decisions ORDER BY rowid DESC")]
     conn.close()
 
-    def _slice(h: str) -> str:  # "Show cards first for mobile returning buyers (…)" -> "mobile returning buyers"
-        s = h.replace("Show cards first for ", "").split(" (")[0]
-        return s or h
+    def _subject(h: str) -> str:  # keep the headline readable, family-agnostic
+        return h.replace("Show cards first for ", "Cards-first · ").strip() or h
 
     seen, learns = set(), []
     for d in decisions:
-        sl = _slice(head.get(d["test_id"], ""))
-        if sl in seen:
+        h = head.get(d["test_id"], "")
+        subject = _subject(h)
+        if subject in seen:
             continue
-        seen.add(sl)
+        seen.add(subject)
         pp, verb = round((d["uplift"] or 0) * 100, 1), d["decision"]
+        # verb carries WINS / HURT / wash so the graph tones the card by outcome
         if verb == "FOUND_WINNER":
-            claim = f"Cards-first WINS for {sl} · +{pp}pp {d['reason']} — kept"
+            claim = f"WINS +{pp}pp · {subject} — kept {d['reason']}"
         elif verb == "FOUND_HARMFUL":
-            claim = f"Cards-first HURT {sl} · {pp}pp {d['reason']} — reverted, won't retry"
+            claim = f"HURT {pp}pp · {subject} — reverted, won't repeat"
         else:
-            claim = f"Cards-first is a wash for {sl} · {d['reason']} — no measurable lift"
+            claim = f"wash · {subject} — no measurable lift {d['reason']}"
         learns.append({"test_id": d["test_id"], "claim": claim})
 
     return JSONResponse({"tests": tests, "learnings": learns, "decisions": decisions})

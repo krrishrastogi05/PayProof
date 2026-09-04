@@ -11,7 +11,7 @@ from sim/truth.py (this simulator is allowed to know the truth; the agent is not
 from __future__ import annotations
 
 import random
-from ..models import Slice
+from ..models import Slice, TestKind
 from . import truth
 
 # Observable traffic mix. Tuned so the demo slices hit the numbers in the PRD:
@@ -45,6 +45,18 @@ class World:
         """Draw one checkout outcome for this slice under the given setting."""
         rate = truth.true_completion_rate(s.device.value, s.customer_type.value, s.order_band, cards_first)
         return self.rng.random() < rate
+
+    def recovers(self, s: Slice, faster_retry: bool) -> bool:
+        """Draw one failed-payment recovery outcome under the given retry schedule."""
+        rate = truth.true_recovery_rate(s.device.value, s.customer_type.value, s.order_band, faster_retry)
+        return self.rng.random() < rate
+
+    def draw(self, s: Slice, test_kind: TestKind, treatment: bool) -> bool:
+        """One outcome for whichever lever this test pulls — the runner stays
+        family-agnostic; only the world knows which truth to consult."""
+        if test_kind == TestKind.retry_timing:
+            return self.recovers(s, treatment)
+        return self.completes(s, treatment)
 
     def observed_baseline(self, s: Slice, samples: int = 4000) -> float:
         """What the merchant currently sees for this slice (UPI-first / control)."""

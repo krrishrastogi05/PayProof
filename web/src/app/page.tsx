@@ -6,7 +6,7 @@ import { Zap, Terminal as TermIcon, Radio, Workflow, CreditCard, Brain, BarChart
 import { Button } from "@/components/ui/button";
 import { PipelineGraph } from "@/components/thaw/PipelineGraph";
 import { Terminal } from "@/components/thaw/Terminal";
-import { CheckoutAB } from "@/components/thaw/Checkout";
+import { CheckoutAB, RetryAB } from "@/components/thaw/Checkout";
 import { MemoryGraph } from "@/components/thaw/MemoryGraph";
 import { ProofView } from "@/components/thaw/ProofView";
 import { openStream, rupee, type ThawEvent } from "@/lib/thaw";
@@ -36,6 +36,7 @@ export default function Home() {
   const [active, setActive] = useState<{ head: string; loss: number; cap: number; rc?: number; rt?: number } | null>(null);
   const [simTs, setSimTs] = useState(0);
   const [memNonce, setMemNonce] = useState(0);
+  const [testKind, setTestKind] = useState("payment_method_order");
   const t0 = useRef(Date.now());
   const [real, setReal] = useState("0:00");
   const esRef = useRef<EventSource | null>(null);
@@ -47,6 +48,7 @@ export default function Home() {
 
   const onEvent = useCallback((e: ThawEvent) => {
     setEvent(e); setSimTs((e.sim_ts as number) || 0);
+    if (e.test_kind) setTestKind(String(e.test_kind));
     if (e.kind === "CAP_SET") setActive({ head: String(e.note || ""), loss: 0, cap: (e.max_loss_inr as number) || 0 });
     if (e.kind === "RUNNING" && e.day) setActive({ head: String(e.headline || "running"), loss: (e.realized_loss_inr as number) || 0, cap: (e.max_loss_inr as number) || 1, rc: (e.rate_control as number) * 100, rt: (e.rate_treatment as number) * 100 });
     if (e.kind === "BRAKE_PULLED") setActive((a) => (a ? { ...a, loss: (e.realized_loss_inr as number) ?? a.loss, cap: (e.max_loss_inr as number) ?? a.cap } : a));
@@ -59,7 +61,7 @@ export default function Home() {
   const start = useCallback((liveRun: boolean, seed = 42) => {
     esRef.current?.close();
     setStarted(true); setRunning(true); setLive(liveRun);
-    setEvent(null); setActive(null); setView("pipeline"); t0.current = Date.now();
+    setEvent(null); setActive(null); setView("pipeline"); setTestKind("payment_method_order"); t0.current = Date.now();
     setTimeout(() => {
       esRef.current = openStream(liveRun, seed, onEvent, () => { setRunning(false); setMemNonce((n) => n + 1); setView("memory"); });
     }, 60);
@@ -123,7 +125,9 @@ export default function Home() {
               <PipelineGraph event={event} running={running} />
             </div>
             <div className={`absolute inset-0 overflow-auto p-5 transition-opacity duration-200 ${view === "checkout" ? "" : "pointer-events-none opacity-0"}`}>
-              <CheckoutAB event={event} rc={active?.rc} rt={active?.rt} />
+              {testKind === "retry_timing"
+                ? <RetryAB event={event} rc={active?.rc} rt={active?.rt} />
+                : <CheckoutAB event={event} rc={active?.rc} rt={active?.rt} />}
             </div>
             <div className={`absolute inset-0 transition-opacity duration-200 ${view === "memory" ? "" : "pointer-events-none opacity-0"}`}>
               <MemoryGraph nonce={memNonce} />

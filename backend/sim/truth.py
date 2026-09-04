@@ -43,3 +43,29 @@ def true_effect_pp(device: str, customer_type: str, order_band: str) -> float:
 def true_completion_rate(device: str, customer_type: str, order_band: str, cards_first: bool) -> float:
     rate = BASELINE_COMPLETION + (true_effect_pp(device, customer_type, order_band) / 100.0 if cards_first else 0.0)
     return max(0.0, min(1.0, rate))
+
+
+# --- retry_timing family -------------------------------------------------------
+# A separate lever: how long to wait before retrying a failed charge, measured on
+# recovery rate (share of failed payments that eventually succeed). Same shape,
+# different truth — so the agent must discover it independently.
+BASELINE_RECOVERY = 0.38
+
+# Effect of the NEW (slower, smarter) retry schedule vs the current one, in pp.
+_RETRY_EFFECTS_PP: list[tuple[dict[str, str], float]] = [
+    ({"device": "mobile", "customer_type": "new", "order_band": "1k-3k"}, +6.0),    # the win -> KEPT
+    ({"device": "desktop", "customer_type": "new", "order_band": "1k-3k"}, -5.0),    # harmful in-window -> BRAKE
+    ({"customer_type": "returning"}, +0.5),
+]
+
+
+def true_retry_effect_pp(device: str, customer_type: str, order_band: str) -> float:
+    for rule, pp in _RETRY_EFFECTS_PP:
+        if _matches(rule, device, customer_type, order_band):
+            return pp
+    return 0.0
+
+
+def true_recovery_rate(device: str, customer_type: str, order_band: str, faster_retry: bool) -> float:
+    rate = BASELINE_RECOVERY + (true_retry_effect_pp(device, customer_type, order_band) / 100.0 if faster_retry else 0.0)
+    return max(0.0, min(1.0, rate))

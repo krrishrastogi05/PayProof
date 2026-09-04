@@ -17,7 +17,7 @@ from .config import Policy
 from .eventlog import EventLog
 from .feasibility import Feasibility
 from .ledger import record_decision, update_test
-from .models import Proposal, TestStatus
+from .models import Proposal, TestKind, TestStatus
 from .scoreboard import analyze, is_a_winner, is_harmful, split_is_healthy
 from .sim.world import World, avg_order_inr
 
@@ -47,11 +47,12 @@ def run_test(proposal: Proposal, feas: Feasibility, *, policy: Policy, world: Wo
     # Give the sequential test room past the fixed-horizon size; harm/winner stop early.
     max_days = int(min(feas.needed_days * 2 + 3, policy.limits.max_minutes / 1440))
     thr_pp = policy.brake.failure_rate_rise_pp
+    kind = proposal.test_kind
 
     n = {"control": 0, "treatment": 0}
     w = {"control": 0, "treatment": 0}
     log.append("RUNNING", test_id=test_id, headline=proposal.what_changed,
-               slice=slice_.label(), max_loss_inr=cap, day=0)
+               slice=slice_.label(), max_loss_inr=cap, day=0, test_kind=kind.value)
 
     effect = proposal.effect_to_detect_pp / 100.0
     need = feas.needed_per_group
@@ -64,7 +65,7 @@ def run_test(proposal: Proposal, feas: Feasibility, *, policy: Policy, world: Wo
         for _ in range(batch):
             g = group_of(f"{test_id}-{done}", test_id)
             n[g] += 1
-            if world.completes(slice_, cards_first=(g == "treatment")):
+            if world.draw(slice_, kind, treatment=(g == "treatment")):
                 w[g] += 1
             done += 1
         clock.advance(batch / arrival * _SECONDS_PER_DAY)
@@ -80,7 +81,7 @@ def run_test(proposal: Proposal, feas: Feasibility, *, policy: Policy, world: Wo
         if done >= next_card:                 # one RUNNING card per simulated day
             day += 1
             next_card += arrival
-            log.append("RUNNING", test_id=test_id, day=day,
+            log.append("RUNNING", test_id=test_id, day=day, test_kind=kind.value,
                        sessions_control=n["control"], sessions_treatment=n["treatment"],
                        rate_control=round(pc, 4), rate_treatment=round(pt, 4),
                        realized_loss_inr=loss, max_loss_inr=cap,
@@ -107,6 +108,11 @@ def run_test(proposal: Proposal, feas: Feasibility, *, policy: Policy, world: Wo
 def _finish(end, proposal, test_id, n, w, loss, cap, clock, log, conn, policy) -> TestStatus:
     a = analyze(n["control"], w["control"], n["treatment"], w["treatment"], policy.promote.alpha)
     ci = f"[{a.ci_low*100:+.1f}, {a.ci_high*100:+.1f}] pp"
+    sl = proposal.slice.label()
+    # read correctly for whichever lever this test pulled
+    is_retry = proposal.test_kind == TestKind.retry_timing
+    change = "the new retry timing" if is_retry else "cards-first"
+    revert_to = "the previous retry timing" if is_retry else "UPI-first"
     record_decision(conn, {"test_id": test_id, "decision": end.value, "uplift": a.uplift,
                            "ci_low": a.ci_low, "ci_high": a.ci_high, "p_value": None,
                            "reason": ci, "sim_ts": round(clock.now(), 1)})
@@ -117,13 +123,13 @@ def _finish(end, proposal, test_id, n, w, loss, cap, clock, log, conn, policy) -
         log.append("BRAKE_PULLED", test_id=test_id, realized_loss_inr=loss, max_loss_inr=cap,
                    sim_days=round(clock.now() / _SECONDS_PER_DAY, 1),
                    reason=f"treatment failures rose past the brake — halted; ₹{loss:,.0f} lost of ₹{cap:,.0f} allowed")
-        log.append("REVERTED", test_id=test_id, note="settings rolled back to UPI-first")
-        log.append("LEARNED", test_id=test_id, claim=f"cards-first HURTS {proposal.slice.label()} — do not retry")
+        log.append("REVERTED", test_id=test_id, note=f"settings rolled back to {revert_to}")
+        log.append("LEARNED", test_id=test_id, claim=f"{change} HURTS {sl} — do not repeat")
     elif end == TestStatus.found_winner:
         log.append("KEPT", test_id=test_id, uplift_pp=round(a.uplift * 100, 1),
                    ci_low_pp=round(a.ci_low * 100, 1), ci_high_pp=round(a.ci_high * 100, 1), ci=ci,
-                   note=f"cards-first wins by {a.uplift*100:+.1f}pp, range {ci} excludes zero")
-        log.append("LEARNED", test_id=test_id, claim=f"cards-first WINS for {proposal.slice.label()}")
+                   note=f"{change} wins by {a.uplift*100:+.1f}pp, range {ci} excludes zero")
+        log.append("LEARNED", test_id=test_id, claim=f"{change} WINS for {sl}")
     elif end == TestStatus.stopped_bad_split:
         log.append("BRAKE_PULLED", test_id=test_id, realized_loss_inr=loss, max_loss_inr=cap,
                    reason="assignment split broke — result would be meaningless, halted")
@@ -131,5 +137,5 @@ def _finish(end, proposal, test_id, n, w, loss, cap, clock, log, conn, policy) -
         log.append("NO_DIFFERENCE", test_id=test_id, uplift_pp=round(a.uplift * 100, 1),
                    ci_low_pp=round(a.ci_low * 100, 1), ci_high_pp=round(a.ci_high * 100, 1), ci=ci,
                    note=f"no difference found — range {ci} includes zero; not promoted")
-        log.append("LEARNED", test_id=test_id, claim=f"cards-first is a wash for {proposal.slice.label()}")
+        log.append("LEARNED", test_id=test_id, claim=f"{change} is a wash for {sl}")
     return end

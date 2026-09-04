@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background, BackgroundVariant, ReactFlow,
   useEdgesState, useNodesState, type Edge, type Node, type ReactFlowInstance,
@@ -63,6 +63,7 @@ const edgeTypes = { flow: FlowEdge };
 export function PipelineGraph({ event, running }: { event: ThawEvent | null; running: boolean }) {
   const [nodes, setNodes] = useNodesState<Node<StageData>>(INIT_NODES as Node<StageData>[]);
   const [edges, setEdges] = useEdgesState<Edge>(INIT_EDGES);
+  const [ready, setReady] = useState(false);
   const rf = useRef<ReactFlowInstance<Node<StageData>, Edge> | null>(null);
 
   useEffect(() => {
@@ -94,6 +95,8 @@ export function PipelineGraph({ event, running }: { event: ThawEvent | null; run
   const onInit = useCallback((inst: ReactFlowInstance<Node<StageData>, Edge>) => {
     rf.current = inst; inst.fitView({ padding: 0.16 });
   }, []);
+  // paint the dot pattern only after the flow has measured its box (avoids NaN SVG)
+  useEffect(() => { const t = setTimeout(() => setReady(true), 60); return () => clearTimeout(t); }, []);
   const proOptions = useMemo(() => ({ hideAttribution: true }), []);
 
   return (
@@ -103,7 +106,7 @@ export function PipelineGraph({ event, running }: { event: ThawEvent | null; run
       nodesDraggable={false} nodesConnectable={false} elementsSelectable={false}
       panOnScroll zoomOnScroll={false} panOnDrag minZoom={0.4} maxZoom={1.3}
     >
-      <Background variant={BackgroundVariant.Dots} gap={30} size={1.2} color="color-mix(in oklch, var(--brand) 45%, transparent)" />
+      {ready && <Background variant={BackgroundVariant.Dots} gap={30} size={1.2} color="color-mix(in oklch, var(--brand) 45%, transparent)" />}
     </ReactFlow>
   );
 }

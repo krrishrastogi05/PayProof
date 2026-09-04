@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Background, BackgroundVariant, Handle, Position, ReactFlow,
   useEdgesState, useNodesState, type Edge, type Node, type ReactFlowInstance,
@@ -46,6 +46,7 @@ const edgeTypes = { flow: FlowEdge };
 export function MemoryGraph({ nonce }: { nonce: number }) {
   const [nodes, setNodes] = useNodesState<Node>([]);
   const [edges, setEdges] = useEdgesState<Edge>([]);
+  const [ready, setReady] = useState(false);
   const rf = useRef<ReactFlowInstance<Node, Edge> | null>(null);
 
   const load = useCallback(async () => {
@@ -66,6 +67,8 @@ export function MemoryGraph({ nonce }: { nonce: number }) {
   }, [setNodes, setEdges]);
 
   useEffect(() => { load(); }, [load, nonce]);
+  // let the flow measure its container before painting the dot pattern (avoids NaN SVG)
+  useEffect(() => { const t = setTimeout(() => setReady(true), 60); return () => clearTimeout(t); }, []);
   // nodes arrive after the async fetch AND React Flow measures their sizes a tick later,
   // so rAF is too early — a short timeout lets fitView frame the real bounding box.
   useEffect(() => {
@@ -79,7 +82,7 @@ export function MemoryGraph({ nonce }: { nonce: number }) {
       onInit={(i) => { rf.current = i; }}
       fitView fitViewOptions={{ padding: 0.22 }} proOptions={{ hideAttribution: true }}
       nodesConnectable={false} elementsSelectable={false} zoomOnScroll={false} panOnScroll minZoom={0.3} maxZoom={1.2}>
-      <Background variant={BackgroundVariant.Dots} gap={30} size={1} color="color-mix(in oklch, var(--brand) 40%, transparent)" />
+      {ready && <Background variant={BackgroundVariant.Dots} gap={30} size={1} color="color-mix(in oklch, var(--brand) 40%, transparent)" />}
     </ReactFlow>
   );
 }
