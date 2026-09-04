@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Zap, Terminal as TermIcon, Radio, Workflow, CreditCard, Brain, BarChart3, History, ShieldAlert, OctagonX } from "lucide-react";
+import { Zap, Terminal as TermIcon, Sparkles, Workflow, CreditCard, Brain, BarChart3, History, ShieldAlert, OctagonX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PipelineGraph } from "@/components/thaw/PipelineGraph";
 import { Terminal } from "@/components/thaw/Terminal";
@@ -79,29 +79,38 @@ export default function Home() {
   return (
     <div className="relative z-10 mx-auto flex h-screen w-full max-w-[1600px] flex-col overflow-hidden px-5">
       {/* header — brand, clocks, run controls */}
-      <header className="flex shrink-0 items-center gap-4 border-b border-border py-3">
+      <header className="flex shrink-0 items-center gap-3 border-b border-border py-3">
+        {/* brand + what it does */}
         <div className="flex flex-col leading-tight">
-          <div className="flex items-baseline gap-1 text-[19px] font-semibold tracking-tight">
+          <div className="flex items-baseline gap-1 text-[20px] font-semibold tracking-tight">
             PayProof<span className="font-serif-em text-[color:var(--gold)]">.</span>
           </div>
-          <div className="hidden text-[11px] text-muted-foreground sm:block">
-            <span className="text-foreground">Agentic AI</span> that tests payment changes on real users — with <span className="text-foreground">memory</span> &amp; <span className="text-foreground">guardrails</span>
+          <div className="hidden text-[11.5px] text-muted-foreground sm:block">
+            <span className="text-foreground">AI that runs safe experiments</span> to find the best payment setting — <span className="text-foreground">memory</span> + <span className="text-foreground">guardrails</span>
           </div>
         </div>
-        <span className="hidden border-l border-border pl-4 text-[13px] text-muted-foreground lg:inline">Acme Electronics</span>
-        <span className="hidden text-[12px] text-muted-foreground xl:inline">· UPI shown first on mobile, set 19 months ago, never re-tested</span>
-        <div className="ml-auto flex items-center gap-4 text-[12px]">
-          <span className="mono hidden sm:inline"><span className="text-muted-foreground">SIM </span>{fmtSim(simTs)}</span>
-          <span className="mono hidden sm:inline"><span className="text-muted-foreground">REAL </span>{real}</span>
-          <span className="mono hidden text-muted-foreground lg:inline">10,000×</span>
-          <label className="hidden cursor-pointer items-center gap-1.5 text-[12px] text-muted-foreground sm:flex">
-            <input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} disabled={running} className="accent-[color:var(--brand)]" /> Gemini
-          </label>
+
+        <div className="ml-auto flex items-center gap-2.5">
+          {/* telemetry chip */}
+          <div className="mono hidden items-center gap-2.5 rounded-lg border border-border bg-black/20 px-3 py-1.5 text-[11px] xl:flex">
+            <span><span className="text-muted-foreground">sim</span> {fmtSim(simTs)}</span>
+            <span className="text-border">·</span>
+            <span><span className="text-muted-foreground">real</span> {real}</span>
+            <span className="text-border">·</span>
+            <span className="text-[color:var(--brand2)]">10,000×</span>
+          </div>
+          {/* Gemini reasoning toggle */}
+          <button onClick={() => !running && setLive(!live)} disabled={running}
+            className={`hidden items-center gap-1.5 rounded-lg border px-2.5 py-2 text-[11.5px] font-medium transition-colors sm:inline-flex ${live ? "border-[color:var(--brand)]/45 bg-[color:var(--accent)] text-[color:var(--accent-foreground)]" : "border-border text-muted-foreground hover:text-foreground"}`}>
+            <Sparkles className="h-3.5 w-3.5" /> Gemini {live ? "on" : "off"}
+          </button>
+          {/* primary action */}
           <Button size="sm" onClick={() => start(live)} disabled={running} className="gap-1.5">
-            <Zap className="h-3.5 w-3.5" /> {running ? "Running…" : started ? "Re-run" : "Un-freeze it"}
+            <Zap className="h-3.5 w-3.5" /> {running ? "Running…" : started ? "Run again" : "Run experiment"}
           </Button>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--brand)]/25 bg-[color:var(--accent)] px-2.5 py-1 text-[11px] font-semibold text-[color:var(--accent-foreground)]">
-            <Radio className="h-3 w-3" /> {running ? "RUNNING" : "CANARY"}
+          {/* live status */}
+          <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-[11px] font-semibold ${running ? "bg-[color:var(--brand)]/15 text-[color:var(--brand2)]" : "border border-border text-muted-foreground"}`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${running ? "animate-pulse bg-[color:var(--brand2)]" : "bg-[color:var(--pos)]"}`} /> {running ? "RUNNING" : "READY"}
           </span>
         </div>
       </header>
@@ -175,7 +184,7 @@ export default function Home() {
                     {String(event.reason || event.note || event.headline || event.claim || event.slice || "")}
                   </div>
                 </motion.div>
-              ) : <div className="mt-2.5 text-[13px] text-muted-foreground">Press <span className="text-foreground">Un-freeze it</span> to watch the agent think.</div>}
+              ) : <div className="mt-2.5 text-[13px] text-muted-foreground">Press <span className="text-foreground">Run experiment</span> to watch the agent think.</div>}
             </div>
           )}
 

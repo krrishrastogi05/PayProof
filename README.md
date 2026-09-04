@@ -1,6 +1,6 @@
 # PayProof
 
-> **Agentic AI that tests payment changes on real users — with memory and guardrails.**
+> **AI that runs safe experiments on your payments, judges the results, and keeps what wins — with memory and guardrails.**
 
 PayProof is a safe-decision engine for payments. An AI agent proposes a change to a
 merchant's checkout — which payment method to show first, how long to wait before
