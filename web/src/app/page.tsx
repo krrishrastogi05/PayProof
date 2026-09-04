@@ -80,11 +80,16 @@ export default function Home() {
     <div className="relative z-10 mx-auto flex h-screen w-full max-w-[1600px] flex-col overflow-hidden px-5">
       {/* header — brand, clocks, run controls */}
       <header className="flex shrink-0 items-center gap-4 border-b border-border py-3">
-        <div className="flex items-baseline gap-1 text-[19px] font-semibold tracking-tight">
-          PayProof<span className="font-serif-em text-[color:var(--gold)]">.</span>
+        <div className="flex flex-col leading-tight">
+          <div className="flex items-baseline gap-1 text-[19px] font-semibold tracking-tight">
+            PayProof<span className="font-serif-em text-[color:var(--gold)]">.</span>
+          </div>
+          <div className="hidden text-[11px] text-muted-foreground sm:block">
+            <span className="text-foreground">Agentic AI</span> that tests payment changes on real users — with <span className="text-foreground">memory</span> &amp; <span className="text-foreground">guardrails</span>
+          </div>
         </div>
-        <span className="hidden border-l border-border pl-4 text-[13px] text-muted-foreground sm:inline">Acme Electronics</span>
-        <span className="hidden text-[12px] text-muted-foreground md:inline">· UPI shown first on mobile, set 19 months ago, never re-tested</span>
+        <span className="hidden border-l border-border pl-4 text-[13px] text-muted-foreground lg:inline">Acme Electronics</span>
+        <span className="hidden text-[12px] text-muted-foreground xl:inline">· UPI shown first on mobile, set 19 months ago, never re-tested</span>
         <div className="ml-auto flex items-center gap-4 text-[12px]">
           <span className="mono hidden sm:inline"><span className="text-muted-foreground">SIM </span>{fmtSim(simTs)}</span>
           <span className="mono hidden sm:inline"><span className="text-muted-foreground">REAL </span>{real}</span>
