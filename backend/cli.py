@@ -133,6 +133,31 @@ def run_demo(seed: int = 42, speed: float = 10_000.0) -> str:
     return str(log.path)
 
 
+def run_experiment(seed: int, lever: str, device: str, customer: str, band: str,
+                   traffic: float, effect: float, speed: float = 10_000.0) -> str:
+    """One operator-defined experiment through the real pipeline. Memory persists
+    across calls (no clear), so re-running the same test is skipped by memory."""
+    policy = load_policy()
+    clock = SimClock(speed=speed)
+    run_id = "exp"
+    from .eventlog import RUNS_DIR
+    (RUNS_DIR / f"{run_id}.jsonl").unlink(missing_ok=True)  # this view shows only this test's cards
+    log = EventLog(run_id, clock)
+    conn = connect()  # NOT cleared — the ledger is the memory these tests accumulate
+    kind = TestKind.retry_timing if lever.startswith("retry") else TestKind.payment_method_order
+    slice_ = Slice(device=Device(device), customer_type=CustomerType(customer), order_band=band)
+    verb = "Wait longer before the first retry" if kind is TestKind.retry_timing else "Show cards first"
+    metric = "recovery rate" if kind is TestKind.retry_timing else "checkout completion"
+    p = Proposal(what_changed=f"{verb} for {device} {customer} buyers ({band})", test_kind=kind,
+                 slice=slice_, traffic_share=traffic, metric_to_watch=metric,
+                 why="operator-defined test", effect_to_detect_pp=effect)
+    log.append("WATCHING", slice=slice_.label(), note="operator-defined experiment · checking memory first")
+    conduct(p, policy=policy, world=World(seed=seed), log=log, conn=conn, run_id=run_id, clock=clock)
+    log.close()
+    conn.close()
+    return str(log.path)
+
+
 def run_live(seed: int = 42, speed: float = 10_000.0) -> str:
     """The real loop: the watcher flags slices, Gemini proposes, the gates decide."""
     policy = load_policy()

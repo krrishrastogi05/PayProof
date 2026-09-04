@@ -62,12 +62,12 @@ export default function Home() {
     else if (e.kind === "SKIPPED_BY_MEMORY") setView("memory"); // memory made the call — show it
   }, []);
 
-  const start = useCallback((liveRun: boolean, seed = 42) => {
+  const start = useCallback((liveRun: boolean, seed = 42, exp?: Record<string, string>) => {
     esRef.current?.close();
     setStarted(true); setRunning(true); setLive(liveRun);
     setEvent(null); setActive(null); setView("pipeline"); setTestKind("payment_method_order"); t0.current = Date.now();
     setTimeout(() => {
-      esRef.current = openStream(liveRun, seed, onEvent, () => { setRunning(false); setMemNonce((n) => n + 1); setView("memory"); });
+      esRef.current = openStream(liveRun, seed, onEvent, () => { setRunning(false); setMemNonce((n) => n + 1); setView("memory"); }, exp);
     }, 60);
   }, [onEvent]);
 

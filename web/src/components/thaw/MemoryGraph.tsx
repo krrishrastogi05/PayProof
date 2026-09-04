@@ -1,13 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import {
-  Background, BackgroundVariant, Handle, Position, ReactFlow,
+  Handle, Position, ReactFlow,
   useEdgesState, useNodesState, type Edge, type Node, type ReactFlowInstance,
 } from "@xyflow/react";
 import { Brain } from "lucide-react";
 import { FlowEdge } from "./FlowEdge";
 import { API } from "@/lib/thaw";
+
+// CSS dot texture instead of React Flow's <Background>, which computes NaN when the
+// container is briefly 0-sized; this never can.
+const DOTS = {
+  backgroundImage: "radial-gradient(color-mix(in oklch, var(--brand) 22%, transparent) 1px, transparent 1px)",
+  backgroundSize: "30px 30px",
+} as const;
 
 type Learning = { test_id: string; claim: string };
 
@@ -46,7 +53,6 @@ const edgeTypes = { flow: FlowEdge };
 export function MemoryGraph({ nonce }: { nonce: number }) {
   const [nodes, setNodes] = useNodesState<Node>([]);
   const [edges, setEdges] = useEdgesState<Edge>([]);
-  const [ready, setReady] = useState(false);
   const rf = useRef<ReactFlowInstance<Node, Edge> | null>(null);
 
   const load = useCallback(async () => {
@@ -67,8 +73,6 @@ export function MemoryGraph({ nonce }: { nonce: number }) {
   }, [setNodes, setEdges]);
 
   useEffect(() => { load(); }, [load, nonce]);
-  // let the flow measure its container before painting the dot pattern (avoids NaN SVG)
-  useEffect(() => { const t = setTimeout(() => setReady(true), 60); return () => clearTimeout(t); }, []);
   // nodes arrive after the async fetch AND React Flow measures their sizes a tick later,
   // so rAF is too early — a short timeout lets fitView frame the real bounding box.
   useEffect(() => {
@@ -79,10 +83,8 @@ export function MemoryGraph({ nonce }: { nonce: number }) {
 
   return (
     <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
-      onInit={(i) => { rf.current = i; }}
+      onInit={(i) => { rf.current = i; }} style={DOTS}
       fitView fitViewOptions={{ padding: 0.22 }} proOptions={{ hideAttribution: true }}
-      nodesConnectable={false} elementsSelectable={false} zoomOnScroll={false} panOnScroll minZoom={0.3} maxZoom={1.2}>
-      {ready && <Background variant={BackgroundVariant.Dots} gap={30} size={1} color="color-mix(in oklch, var(--brand) 40%, transparent)" />}
-    </ReactFlow>
+      nodesConnectable={false} elementsSelectable={false} zoomOnScroll={false} panOnScroll minZoom={0.3} maxZoom={1.2} />
   );
 }

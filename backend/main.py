@@ -16,7 +16,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
-from .cli import run_demo, run_live
+from .cli import run_demo, run_experiment, run_live
 from .config import POLICY_PATH, load_policy
 from .eventlog import read_log
 from .ledger import all_tests, connect
@@ -32,10 +32,14 @@ def index() -> HTMLResponse:
 
 
 @app.get("/stream")
-async def stream(seed: int = 42, live: int = 0):
-    """Generate a run (curated replay, or live via Gemini), then stream its cards.
-    The live run really calls Gemini; the curated replay is the guaranteed demo."""
-    path = await asyncio.to_thread(run_live if live else run_demo, seed, 10_000.0)
+async def stream(seed: int = 42, live: int = 0, lever: str = "", device: str = "mobile",
+                 customer: str = "returning", band: str = "1k-3k", traffic: float = 0.10, effect: float = 5.0):
+    """Generate a run, then stream its cards. `lever` set = one operator-defined
+    experiment; else the curated demo (or a live Gemini run)."""
+    if lever:
+        path = await asyncio.to_thread(run_experiment, seed, lever, device, customer, band, traffic, effect, 10_000.0)
+    else:
+        path = await asyncio.to_thread(run_live if live else run_demo, seed, 10_000.0)
 
     fast = {"RUNNING", "RECALLED"}
     weighty = {"BRAKE_PULLED", "KEPT", "NO_DIFFERENCE", "REVERTED", "LEARNED", "SKIPPED_BY_MEMORY"}
@@ -78,6 +82,18 @@ async def policy_set(body: dict) -> JSONResponse:
         return JSONResponse({"ok": True, "message": set_override(str(key), str(value))})
     except (KeyError, ValueError) as e:
         return JSONResponse({"ok": False, "message": str(e), "tunable": tunables()}, status_code=400)
+
+
+@app.post("/forget")
+def forget() -> JSONResponse:
+    """Wipe the agent's memory — the ledger of tests, decisions and learnings — so
+    the operator can demo the cold start again. Policy and run registry are kept."""
+    conn = connect()
+    for table in ("tests", "decisions", "learnings"):
+        conn.execute(f"DELETE FROM {table}")
+    conn.commit()
+    conn.close()
+    return JSONResponse({"ok": True, "message": "memory cleared — the agent is cold again"})
 
 
 @app.get("/runs")

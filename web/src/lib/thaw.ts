@@ -7,9 +7,10 @@ export type ThawEvent = {
 
 export const getJSON = <T,>(p: string): Promise<T> => fetch(API + p).then((r) => r.json());
 
-export function openStream(live: boolean, seed: number, onEvent: (e: ThawEvent) => void, onDone: () => void): EventSource {
+export function openStream(live: boolean, seed: number, onEvent: (e: ThawEvent) => void, onDone: () => void, exp?: Record<string, string>): EventSource {
   const q = new URLSearchParams({ seed: String(seed) });
   if (live) q.set("live", "1");
+  if (exp) for (const [k, v] of Object.entries(exp)) q.set(k, v);
   const es = new EventSource(`${API}/stream?${q.toString()}`);
   es.onmessage = (m) => { try { onEvent(JSON.parse(m.data)); } catch { /* ignore */ } };
   es.addEventListener("done", () => { es.close(); onDone(); });

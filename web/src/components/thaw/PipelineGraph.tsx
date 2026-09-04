@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
-  Background, BackgroundVariant, ReactFlow,
+  ReactFlow,
   useEdgesState, useNodesState, type Edge, type Node, type ReactFlowInstance,
 } from "@xyflow/react";
 import { StageNode, SubNode, type StageData } from "./StageNode";
@@ -65,7 +65,6 @@ const edgeTypes = { flow: FlowEdge };
 export function PipelineGraph({ event, running }: { event: ThawEvent | null; running: boolean }) {
   const [nodes, setNodes] = useNodesState<Node<StageData>>(INIT_NODES as Node<StageData>[]);
   const [edges, setEdges] = useEdgesState<Edge>(INIT_EDGES);
-  const [ready, setReady] = useState(false);
   const rf = useRef<ReactFlowInstance<Node<StageData>, Edge> | null>(null);
 
   useEffect(() => {
@@ -97,18 +96,19 @@ export function PipelineGraph({ event, running }: { event: ThawEvent | null; run
   const onInit = useCallback((inst: ReactFlowInstance<Node<StageData>, Edge>) => {
     rf.current = inst; inst.fitView({ padding: 0.16 });
   }, []);
-  // paint the dot pattern only after the flow has measured its box (avoids NaN SVG)
-  useEffect(() => { const t = setTimeout(() => setReady(true), 60); return () => clearTimeout(t); }, []);
   const proOptions = useMemo(() => ({ hideAttribution: true }), []);
+  // CSS dot texture instead of React Flow's <Background> (which NaNs on a 0-sized mount)
+  const dots = useMemo(() => ({
+    backgroundImage: "radial-gradient(color-mix(in oklch, var(--brand) 22%, transparent) 1px, transparent 1px)",
+    backgroundSize: "30px 30px",
+  }), []);
 
   return (
     <ReactFlow
-      nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onInit={onInit}
+      nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onInit={onInit} style={dots}
       fitView fitViewOptions={{ padding: 0.16 }} proOptions={proOptions}
       nodesDraggable={false} nodesConnectable={false} elementsSelectable={false}
       panOnScroll zoomOnScroll={false} panOnDrag minZoom={0.4} maxZoom={1.3}
-    >
-      {ready && <Background variant={BackgroundVariant.Dots} gap={30} size={1.2} color="color-mix(in oklch, var(--brand) 45%, transparent)" />}
-    </ReactFlow>
+    />
   );
 }

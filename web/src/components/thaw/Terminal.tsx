@@ -13,7 +13,9 @@ const C = {
 };
 
 const HELP = [
-  ["simulate", "run the pipeline (--live for Gemini)"],
+  ["simulate", "run the full demo sweep (--live for Gemini)"],
+  ["test …", "run ONE experiment you define — see 'test' with no args"],
+  ["forget", "wipe the agent's memory (demo the cold start again)"],
   ["set K V", "tune a policy limit, e.g. set max_traffic_share 0.25"],
   ["config", "current limits + seed"],
   ["seed N", "set the simulation seed"],
@@ -35,7 +37,10 @@ type Run = {
   total_loss_inr: number; cap_broken: number; sim_seconds: number;
 };
 
-export function Terminal({ onRun }: { onRun: (live: boolean, seed: number) => void }) {
+const DEVICES = ["mobile", "desktop", "tablet"];
+const CUSTOMERS = ["new", "returning"];
+
+export function Terminal({ onRun }: { onRun: (live: boolean, seed: number, exp?: Record<string, string>) => void }) {
   const [lines, setLines] = useState<Line[]>([]);
   const [val, setVal] = useState("");
   const [hist, setHist] = useState<string[]>([]);
@@ -61,6 +66,30 @@ export function Terminal({ onRun }: { onRun: (live: boolean, seed: number) => vo
       if (name === "help") HELP.forEach(([c, d]) => push(<>{C.b(c.padEnd(12))}{C.m(d)}</>));
       else if (name === "clear") setLines([]);
       else if (name === "simulate") { const live = args.includes("--live"); push(C.m(`${live ? "live Gemini" : "curated"} run · seed ${seed}…`)); onRun(live, seed); }
+      else if (name === "test") {
+        const flag = (k: string, d: string) => { const i = args.indexOf(k); return i >= 0 && args[i + 1] ? args[i + 1] : d; };
+        // shape: test <lever> <device> <customer> <band> [--traffic N] [--effect N]
+        const fi = args.findIndex((a) => a.startsWith("--"));
+        const [leverRaw, device, customer, band] = fi === -1 ? args : args.slice(0, fi);
+        if (!leverRaw || !device || !customer) {
+          push(C.m("define one experiment and watch the engine handle it:"));
+          push(<>{C.b("  test <lever> <device> <customer> <band> ")}{C.m("[--traffic 0.1] [--effect 5]")}</>);
+          push(<>{C.m("  lever   ")}{C.a("cards")}{C.m(" (payment order) or ")}{C.a("retry")}{C.m(" (retry timing)")}</>);
+          push(<>{C.m("  device  ")}{C.a(DEVICES.join(" | "))}{C.m("    customer  ")}{C.a(CUSTOMERS.join(" | "))}</>);
+          push(<>{C.m("  e.g.  ")}{C.b("test cards mobile returning 1k-3k")}{C.m("   then run it again → skipped by memory")}</>);
+        } else if (!DEVICES.includes(device) || !CUSTOMERS.includes(customer)) {
+          push(C.r(`device must be ${DEVICES.join("/")}, customer ${CUSTOMERS.join("/")}`));
+        } else {
+          const lever = leverRaw.startsWith("retry") ? "retry" : "cards-first";
+          const exp = { lever, device, customer, band: band || "1k-3k", traffic: flag("--traffic", "0.1"), effect: flag("--effect", "5") };
+          push(<>{C.m("experiment · ")}{C.b(`${lever} · ${device} ${customer} · ${exp.band}`)}{C.m(` · ${(+exp.traffic) * 100}% traffic · seed ${seed}`)}</>);
+          onRun(false, seed, exp);
+        }
+      }
+      else if (name === "forget") {
+        const r = await fetch(API + "/forget", { method: "POST" }).then((x) => x.json());
+        push(<>{C.a("✦ ")}{C.m(r.message)}{C.m("  — the next test starts fresh")}</>);
+      }
       else if (name === "seed") { const n = parseInt(args[0], 10); if (Number.isNaN(n)) push(C.r("usage: seed <number>")); else { setSeed(n); push(<>{C.m("seed = ")}{C.b(n)}</>); } }
       else if (name === "config") {
         const d = await getJSON<{ parsed: { limits: Record<string, number>; brake: Record<string, number>; promote: Record<string, number> } }>("/policy");
