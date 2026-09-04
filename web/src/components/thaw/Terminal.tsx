@@ -46,9 +46,20 @@ export function Terminal({ onRun }: { onRun: (live: boolean, seed: number, exp?:
   const [hist, setHist] = useState<string[]>([]);
   const [hi, setHi] = useState(-1);
   const [seed, setSeed] = useState(42);
+  const [typing, setTyping] = useState(false);
   const idRef = useRef(0);
   const bodyRef = useRef<HTMLDivElement>(null);
   const inRef = useRef<HTMLInputElement>(null);
+  const typeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // enlarge the terminal while the operator types (so a demo audience can read it),
+  // then ease back to normal ~1.4s after typing stops
+  const onType = () => {
+    setTyping(true);
+    if (typeTimer.current) clearTimeout(typeTimer.current);
+    typeTimer.current = setTimeout(() => setTyping(false), 1400);
+  };
+  useEffect(() => () => { if (typeTimer.current) clearTimeout(typeTimer.current); }, []);
 
   const push = (node: ReactNode) => setLines((l) => [...l, { id: idRef.current++, node }]);
   useEffect(() => { bodyRef.current?.scrollTo({ top: 1e9 }); }, [lines]);
@@ -201,12 +212,12 @@ export function Terminal({ onRun }: { onRun: (live: boolean, seed: number, exp?:
         <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" /><span className="h-2.5 w-2.5 rounded-full bg-[#febc2e]" /><span className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
         <span className="ml-2 text-[11px] text-muted-foreground mono">payproof — shell</span>
       </div>
-      <div ref={bodyRef} className="mono flex-1 space-y-0.5 overflow-auto px-4 py-3 text-[12.5px] leading-relaxed" onClick={() => inRef.current?.focus()}>
+      <div ref={bodyRef} className={`mono flex-1 space-y-0.5 overflow-auto px-4 py-3 leading-relaxed transition-all duration-300 ${typing ? "text-[16.5px]" : "text-[12.5px]"}`} onClick={() => inRef.current?.focus()}>
         {lines.map((l) => <div key={l.id} className="whitespace-pre-wrap">{l.node}</div>)}
         <div className="flex items-center gap-2">
           <span className="text-[color:var(--brand2)]">payproof ❯</span>
           <input ref={inRef} value={val} spellCheck={false} autoFocus
-            onChange={(e) => setVal(e.target.value)}
+            onChange={(e) => { setVal(e.target.value); onType(); }}
             onKeyDown={(e) => {
               if (e.key === "Enter") { run(val); if (val.trim()) setHist((h) => [...h, val]); setVal(""); setHi(-1); }
               else if (e.key === "ArrowUp") { e.preventDefault(); const ni = hi < 0 ? hist.length - 1 : Math.max(0, hi - 1); if (hist[ni] != null) { setHi(ni); setVal(hist[ni]); } }
