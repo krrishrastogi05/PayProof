@@ -12,6 +12,10 @@ cheaper, safer, and smarter than the last.
 
 *Razorpay AI Buildathon — **Open Track***
 
+> 📄 For the full engineering write-up — architecture, every pipeline node, the guardrails,
+> memory internals, the terminal, and the deepest bug we hit — see
+> [**docs/TECHNICAL.md**](docs/TECHNICAL.md).
+
 ---
 
 ## The problem
