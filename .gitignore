@@ -22,3 +22,6 @@ next-env.d.ts
 
 # os
 .DS_Store
+
+# generated run logs (recreated at runtime)
+runs/*.jsonl

@@ -10,11 +10,10 @@ from __future__ import annotations
 
 import asyncio
 import json
-from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from .cli import run_demo, run_experiment, run_live
 from .config import POLICY_PATH, load_policy
@@ -23,12 +22,10 @@ from .ledger import all_tests, connect
 
 app = FastAPI(title="PayProof")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-FRONTEND = Path(__file__).resolve().parent.parent / "frontend" / "index.html"
-
-
 @app.get("/")
-def index() -> HTMLResponse:
-    return HTMLResponse(FRONTEND.read_text(encoding="utf-8"))
+def index() -> JSONResponse:
+    """The cockpit is the Next.js app in web/; this API streams the decision pipeline."""
+    return JSONResponse({"service": "PayProof", "cockpit": "web/ (Next.js)", "api_docs": "/docs"})
 
 
 @app.get("/stream")
