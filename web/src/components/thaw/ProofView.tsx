@@ -25,7 +25,7 @@ function Bar({ pct, tone, label, value }: { pct: number; tone: string; label: st
         <span className="text-muted-foreground">{label}</span>
         <span className="mono font-semibold" style={{ color: tone }}>{value}</span>
       </div>
-      <div className="h-2.5 overflow-hidden rounded-full bg-white/5">
+      <div className="h-2.5 overflow-hidden rounded-full bg-[color:var(--secondary)]">
         <motion.div className="h-full rounded-full" style={{ background: tone }}
           initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.9, ease: "easeOut" }} />
       </div>
@@ -52,9 +52,9 @@ function PatternPanel({ pats }: { pats: Pattern[] | null }) {
         <Radar className="h-3.5 w-3.5 text-[color:var(--brand2)]" /><span className="eyebrow">Patterns the agent extracted — scored against the hidden truth it never saw</span>
         {pats && <span className="ml-auto mono text-[12px] font-semibold text-[color:var(--pos)]">{hit}/{pats.length} recovered</span>}
       </div>
-      <div className="mb-3 text-[12px] text-muted-foreground">Each slice run across seeds; the verdict is the agent&apos;s own, from noisy observations. Truth is revealed only to score.</div>
+      <div className="mb-3 text-[12px] text-muted-foreground">Each customer segment is tried many times; the verdict is the agent&apos;s own, from noisy observations. Truth is revealed only to score.</div>
       {!pats ? (
-        <div className="flex items-center gap-2 py-4 text-[13px] text-muted-foreground"><div className="h-4 w-4 animate-spin rounded-full border-2 border-white/15 border-t-[color:var(--brand)]" /> running the agent across seeds…</div>
+        <div className="flex items-center gap-2 py-4 text-[13px] text-muted-foreground"><div className="h-4 w-4 animate-spin rounded-full border-2 border-[color:var(--border)] border-t-[color:var(--brand)]" /> running the agent across many runs…</div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] border-collapse text-[12.5px]">
@@ -110,7 +110,7 @@ export function ProofView() {
         <PatternPanel pats={pats} />
         {!d ? (
           <div className="flex items-center gap-2 rounded-xl border border-border glass p-4 text-[13px] text-muted-foreground">
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/15 border-t-[color:var(--brand)]" /> measuring on the real simulator — 200 trials, 40 tests…
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-[color:var(--border)] border-t-[color:var(--brand)]" /> measuring across many scenarios — 200 trials, 40 tests…
           </div>
         ) : (
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -135,7 +135,7 @@ export function ProofView() {
             The same slices, run by a <span className="text-foreground">cold</span> agent vs. one that <span className="text-foreground">remembers</span> what already failed.
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-lg border border-border bg-black/20 p-3">
+            <div className="rounded-lg border border-border bg-[color:var(--secondary)] p-3">
               <div className="text-[11px] text-muted-foreground">Cold start</div>
               <div className="mono mt-1 text-[22px] font-semibold">{d.cold_tests.toFixed(0)}<span className="text-[13px] text-muted-foreground"> tests</span></div>
               <div className="mono text-[13px] text-[color:var(--harm)]">{rupee(d.cold_loss)} at risk</div>

@@ -10,16 +10,17 @@ type Run = {
   n_tests: number; n_winners: number; n_harmful: number; n_wash: number;
   n_blocked: number; n_learnings: number; total_loss_inr: number; cap_broken: number; sim_seconds: number;
 };
+type Learning = { claim: string; verdict?: string };
 type Report = {
   run: Run; levers: Record<string, number | string>;
-  learnings: string[]; blocked: string[];
+  learnings: Learning[]; blocked: string[];
 };
 
-const toneOf = (c: string) => /^WINS/.test(c) ? "var(--pos)" : /^HURT/.test(c) ? "var(--harm)" : "var(--muted-foreground)";
+const toneOf = (v?: string) => v === "win" ? "var(--pos)" : v === "harm" ? "var(--harm)" : "var(--muted-foreground)";
 
 function Chip({ icon: Icon, label, value, tone }: { icon: typeof Trophy; label: string; value: number | string; tone: string }) {
   return (
-    <div className="flex items-center gap-1.5 rounded-lg border border-border bg-black/20 px-2.5 py-1.5">
+    <div className="flex items-center gap-1.5 rounded-lg border border-border bg-[color:var(--secondary)] px-2.5 py-1.5">
       <Icon className="h-3.5 w-3.5" style={{ color: tone }} />
       <span className="mono text-[13px] font-semibold" style={{ color: tone }}>{value}</span>
       <span className="text-[11px] text-muted-foreground">{label}</span>
@@ -64,7 +65,7 @@ export function RunsView({ nonce }: { nonce: number }) {
             const on = r.id === sel;
             return (
               <button key={r.id} onClick={() => setSel(r.id)}
-                className={`w-full rounded-xl border p-3 text-left transition-colors ${on ? "border-[color:var(--brand)]/50 bg-[color:var(--accent)]" : "border-border glass hover:border-white/15"}`}>
+                className={`w-full rounded-xl border p-3 text-left transition-all ${on ? "border-[color:var(--brand)]/50 bg-[color:var(--accent)]" : "border-border glass hover:-translate-y-0.5 hover:border-[color:var(--brand)]/30"}`}>
                 <div className="flex items-center justify-between">
                   <span className="mono text-[13px] font-semibold">#{r.id} <span className="text-muted-foreground">seed {r.seed}</span></span>
                   <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{r.live ? "live" : "curated"}</span>
@@ -104,7 +105,7 @@ export function RunsView({ nonce }: { nonce: number }) {
               <div className="eyebrow mb-1.5">Policy levers</div>
               <div className="flex flex-wrap gap-1.5">
                 {Object.entries(rep.levers).map(([k, v]) => (
-                  <span key={k} className="mono rounded-md border border-border bg-black/20 px-2 py-1 text-[11px]"><span className="text-muted-foreground">{k}</span> {String(v)}</span>
+                  <span key={k} className="mono rounded-md border border-border bg-[color:var(--secondary)] px-2 py-1 text-[11px]"><span className="text-muted-foreground">{k}</span> {String(v)}</span>
                 ))}
               </div>
             </div>
@@ -112,12 +113,12 @@ export function RunsView({ nonce }: { nonce: number }) {
             <div className="mb-3">
               <div className="eyebrow mb-1.5">What the agent learned</div>
               <div className="space-y-1.5">
-                {rep.learnings.length ? rep.learnings.map((c, i) => (
+                {rep.learnings.length ? rep.learnings.map((l, i) => (
                   <div key={i} className="flex items-start gap-2 text-[12.5px]">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: toneOf(c) }} />
-                    <span className="text-foreground">{c}</span>
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: toneOf(l.verdict) }} />
+                    <span className="text-foreground">{l.claim}</span>
                   </div>
-                )) : <div className="text-[12px] text-muted-foreground">nothing concluded</div>}
+                )) : <div className="text-[12px] text-muted-foreground">nothing concluded yet</div>}
               </div>
             </div>
 

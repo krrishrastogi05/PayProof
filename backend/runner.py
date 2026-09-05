@@ -128,12 +128,12 @@ def _finish(end, proposal, test_id, n, w, loss, cap, clock, log, conn, policy) -
                    sim_days=round(clock.now() / _SECONDS_PER_DAY, 1),
                    reason=f"treatment failures rose past the brake — halted; ₹{loss:,.0f} lost of ₹{cap:,.0f} allowed")
         log.append("REVERTED", test_id=test_id, note=f"settings rolled back to {revert_to}")
-        claim = f"{change} HURTS {sl} — do not repeat"
+        claim = f"{change.capitalize()} hurt {sl} — reverted it, won't try again"
     elif end == TestStatus.found_winner:
         log.append("KEPT", test_id=test_id, uplift_pp=round(a.uplift * 100, 1),
                    ci_low_pp=round(a.ci_low * 100, 1), ci_high_pp=round(a.ci_high * 100, 1), ci=ci,
                    note=f"{change} wins by {a.uplift*100:+.1f}pp, range {ci} excludes zero")
-        claim = f"{change} WINS for {sl}"
+        claim = f"{change.capitalize()} helped {sl} — kept it on"
     elif end == TestStatus.stopped_bad_split:
         log.append("BRAKE_PULLED", test_id=test_id, realized_loss_inr=loss, max_loss_inr=cap,
                    reason="assignment split broke — result would be meaningless, halted")
@@ -141,7 +141,7 @@ def _finish(end, proposal, test_id, n, w, loss, cap, clock, log, conn, policy) -
         log.append("NO_DIFFERENCE", test_id=test_id, uplift_pp=round(a.uplift * 100, 1),
                    ci_low_pp=round(a.ci_low * 100, 1), ci_high_pp=round(a.ci_high * 100, 1), ci=ci,
                    note=f"no difference found — range {ci} includes zero; not promoted")
-        claim = f"{change} is a wash for {sl}"
+        claim = f"{change.capitalize()} made no real difference for {sl}"
 
     if claim is not None:
         # this is the memory a later decision will read back (recall_for)

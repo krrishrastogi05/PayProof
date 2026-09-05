@@ -16,29 +16,24 @@ const DOTS = {
   backgroundSize: "30px 30px",
 } as const;
 
-type Learning = { test_id: string; claim: string };
+type Learning = { test_id: string; claim: string; verdict?: string };
 
-function toneOf(claim: string) {
-  if (/WINS/i.test(claim)) return "var(--pos)";
-  if (/HURT/i.test(claim)) return "var(--harm)";
-  if (/wash|no difference/i.test(claim)) return "var(--muted-foreground)";
-  return "var(--notice)";
-}
+const toneOf = (v?: string) => v === "win" ? "var(--pos)" : v === "harm" ? "var(--harm)" : "var(--muted-foreground)";
 
 function CenterNode({ data }: { data: { count: number } }) {
   return (
-    <div className="relative grid h-[104px] w-[104px] place-items-center rounded-full border border-[color:var(--brand2)] bg-[radial-gradient(circle_at_30%_30%,color-mix(in_oklch,var(--brand)_45%,transparent),var(--card))]"
-      style={{ boxShadow: "0 0 60px -10px var(--brand)" }}>
+    <div className="relative grid h-[108px] w-[108px] place-items-center rounded-full text-white"
+      style={{ background: "linear-gradient(145deg, var(--brand), var(--brand2))", boxShadow: "0 18px 50px -12px color-mix(in oklch, var(--brand) 60%, transparent)" }}>
       <Handle type="source" position={Position.Right} className="!opacity-0" />
-      <Brain className="h-7 w-7 text-white" />
-      <div className="mt-1 text-[11px] font-semibold text-white">Memory</div>
-      <div className="mono text-[10px] text-[color:var(--brand2)]">{data.count} learned</div>
+      <Brain className="h-7 w-7" strokeWidth={2.2} />
+      <div className="mt-1 text-[11px] font-semibold">Memory</div>
+      <div className="mono text-[10px] text-white/85">{data.count} learned</div>
     </div>
   );
 }
 function CardNode({ data }: { data: { claim: string; tone: string } }) {
   return (
-    <div className="w-[210px] rounded-xl border px-3 py-2.5 glass" style={{ borderColor: `color-mix(in oklch, ${data.tone} 45%, transparent)`, boxShadow: `0 8px 30px -16px ${data.tone}` }}>
+    <div className="w-[250px] rounded-xl border bg-card px-3.5 py-3" style={{ borderColor: `color-mix(in oklch, ${data.tone} 40%, transparent)`, boxShadow: `0 10px 34px -14px color-mix(in oklch, ${data.tone} 55%, transparent)` }}>
       <Handle type="target" position={Position.Left} className="!opacity-0" />
       <div className="flex items-start gap-2">
         <span className="mt-1 h-2 w-2 shrink-0 rounded-full" style={{ background: data.tone, boxShadow: `0 0 8px ${data.tone}` }} />
@@ -65,7 +60,7 @@ export function MemoryGraph({ nonce }: { nonce: number }) {
       const n = Math.max(1, items.length);
       const cards: Node[] = items.map((l, i) => {
         const a = (i / n) * Math.PI * 2 - Math.PI / 2; // full circle around the hub
-        return { id: `m${i}`, type: "memcard", position: { x: Math.cos(a) * R, y: Math.sin(a) * R }, data: { claim: l.claim, tone: toneOf(l.claim) }, draggable: false };
+        return { id: `m${i}`, type: "memcard", position: { x: Math.cos(a) * R, y: Math.sin(a) * R }, data: { claim: l.claim, tone: toneOf(l.verdict) }, draggable: false };
       });
       const es: Edge[] = items.map((_, i) => ({ id: `e${i}`, source: "center", target: `m${i}`, type: "flow", data: { live: true } }));
       setNodes([center, ...cards]); setEdges(es);

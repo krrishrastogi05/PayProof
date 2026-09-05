@@ -92,7 +92,7 @@ export default function Home() {
 
         <div className="ml-auto flex items-center gap-2.5">
           {/* telemetry chip */}
-          <div className="mono hidden items-center gap-2.5 rounded-lg border border-border bg-black/20 px-3 py-1.5 text-[11px] xl:flex">
+          <div className="mono hidden items-center gap-2.5 rounded-lg border border-border bg-[color:var(--secondary)] px-3 py-1.5 text-[11px] xl:flex">
             <span><span className="text-muted-foreground">sim</span> {fmtSim(simTs)}</span>
             <span className="text-border">·</span>
             <span><span className="text-muted-foreground">real</span> {real}</span>
@@ -137,7 +137,7 @@ export default function Home() {
                 : view === "checkout" ? "the frozen setting, tested live"
                   : view === "memory" ? "what survived the tests"
                     : view === "runs" ? "every run archived & reported"
-                      : "measured on the real simulator"}
+                      : "measured across many runs"}
             </span>
           </div>
           <div className="relative min-h-0 flex-1">
@@ -199,7 +199,7 @@ export default function Home() {
             <div className="mt-2 mono text-[24px] font-semibold" style={{ color: active && active.loss > 0 ? "var(--harm)" : "var(--foreground)" }}>
               {rupee(active?.loss ?? 0)} <span className="text-[14px] text-muted-foreground">/ {rupee(active?.cap ?? 0)} cap</span>
             </div>
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/5">
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-[color:var(--secondary)]">
               <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: pct > 50 || braked ? "var(--harm)" : "var(--brand)" }} />
             </div>
             {braked ? (

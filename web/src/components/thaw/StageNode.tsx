@@ -33,9 +33,9 @@ export function StageNode({ data }: { data: StageData }) {
         borderColor: active ? tone : "var(--border)",
         background: "linear-gradient(180deg, color-mix(in oklch, var(--card) 92%, white 5%), var(--card))",
         boxShadow: active
-          ? `0 0 0 1px ${tone}, 0 12px 40px -12px ${tone}, 0 0 34px -6px color-mix(in oklch, ${tone} 45%, transparent)`
-          : done ? "0 8px 24px -14px rgba(0,0,0,.6)" : "0 8px 24px -16px rgba(0,0,0,.5)",
-        opacity: data.state === "idle" ? 0.62 : 1,
+          ? `0 0 0 1px ${tone}, 0 16px 44px -14px color-mix(in oklch, ${tone} 55%, transparent), 0 0 30px -8px color-mix(in oklch, ${tone} 40%, transparent)`
+          : done ? "0 12px 30px -16px rgba(30,54,110,.28)" : "0 10px 26px -16px rgba(30,54,110,.2)",
+        opacity: data.state === "idle" ? 0.8 : 1,
       }}
     >
       <div className="h-[3px] w-full" style={{ background: `linear-gradient(90deg, ${accent}, transparent)` }} />
@@ -78,8 +78,8 @@ export function SubNode({ data }: { data: { label: string; sub?: string; on?: bo
       className="w-[164px] rounded-[14px] border px-3 py-2.5"
       style={{
         borderColor: data.on ? "var(--brand2)" : "var(--border)",
-        background: "linear-gradient(180deg, color-mix(in oklch, var(--card) 90%, transparent), color-mix(in oklch, var(--card) 70%, transparent))",
-        boxShadow: data.on ? "0 0 22px -8px var(--brand)" : "none",
+        background: "var(--card)",
+        boxShadow: data.on ? "0 10px 26px -12px color-mix(in oklch, var(--brand) 55%, transparent)" : "0 8px 20px -14px rgba(30,54,110,.2)",
       }}>
       <Handle type="target" position={Position.Top} className={H} />
       <div className="flex items-center gap-2">

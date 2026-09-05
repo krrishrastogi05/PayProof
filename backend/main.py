@@ -133,32 +133,25 @@ def memory() -> JSONResponse:
     """What the agent has learned — the ledger as a memory graph.
     Each concluded decision is a claim; we phrase it so the record is honest
     about what didn't work, not just the wins."""
+    from .report import humanize
     conn = connect()
     tests = all_tests(conn)
-    head = {t["id"]: t.get("headline", "") for t in tests}
+    by_id = {t["id"]: t for t in tests}
     decisions = [dict(r) for r in conn.execute(
         "SELECT test_id, decision, uplift, ci_low, ci_high, reason FROM decisions ORDER BY rowid DESC")]
     conn.close()
 
-    def _subject(h: str) -> str:  # keep the headline readable, family-agnostic
-        return h.replace("Show cards first for ", "Cards-first · ").strip() or h
-
     seen, learns = set(), []
     for d in decisions:
-        h = head.get(d["test_id"], "")
-        subject = _subject(h)
-        if subject in seen:
+        t = by_id.get(d["test_id"])
+        if not t:
             continue
-        seen.add(subject)
-        pp, verb = round((d["uplift"] or 0) * 100, 1), d["decision"]
-        # verb carries WINS / HURT / wash so the graph tones the card by outcome
-        if verb == "FOUND_WINNER":
-            claim = f"WINS +{pp}pp · {subject} — kept {d['reason']}"
-        elif verb == "FOUND_HARMFUL":
-            claim = f"HURT {pp}pp · {subject} — reverted, won't repeat"
-        else:
-            claim = f"wash · {subject} — no measurable lift {d['reason']}"
-        learns.append({"test_id": d["test_id"], "claim": claim})
+        key = (t.get("test_kind"), t.get("slice_json"))  # one lesson per segment + lever
+        if key in seen:
+            continue
+        seen.add(key)
+        claim, verdict = humanize(t.get("test_kind", ""), t.get("slice_json", ""), d["decision"], d["uplift"])
+        learns.append({"test_id": d["test_id"], "claim": claim, "verdict": verdict})
 
     return JSONResponse({"tests": tests, "learnings": learns, "decisions": decisions})
 

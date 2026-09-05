@@ -49,38 +49,44 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* airy light — white → Razorpay blue */
+  --background: oklch(0.99 0.006 255);
+  --foreground: oklch(0.25 0.045 264);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.25 0.045 264);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --popover-foreground: oklch(0.25 0.045 264);
+  --primary: oklch(0.55 0.2 258);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.965 0.014 255);
+  --secondary-foreground: oklch(0.32 0.05 264);
+  --muted: oklch(0.965 0.012 255);
+  --muted-foreground: oklch(0.53 0.035 262);
+  --accent: oklch(0.93 0.05 255);
+  --accent-foreground: oklch(0.45 0.19 258);
+  --destructive: oklch(0.6 0.22 25);
+  --border: oklch(0.905 0.018 255);
+  --input: oklch(0.905 0.018 255);
+  --ring: oklch(0.6 0.19 258);
+  --chart-1: oklch(0.55 0.2 258);
+  --chart-2: oklch(0.6 0.15 165);
+  --chart-3: oklch(0.6 0.2 25);
+  --chart-4: oklch(0.55 0.17 300);
+  --chart-5: oklch(0.7 0.15 85);
+  --radius: 0.7rem;
+  --sidebar: oklch(0.985 0.008 255);
+  --sidebar-foreground: oklch(0.25 0.045 264);
+  --sidebar-primary: oklch(0.55 0.2 258);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.93 0.05 255);
+  --sidebar-accent-foreground: oklch(0.45 0.19 258);
+  --sidebar-border: oklch(0.905 0.018 255);
+  --sidebar-ring: oklch(0.6 0.19 258);
+  /* semantic + accents used directly (tuned for a light ground) */
+  --pos: #0ca678; --harm: #e5484d; --notice: #dd8b0b; --violet: #6d5cf0;
+  --cyan: #0ba5c7; --gold: #bf8f2e; --brand: #2b6bff; --brand2: #4f83ff;
+  /* soft, blue-tinted elevation so cards float */
+  --shadow-card: 0 1px 2px rgba(30, 54, 110, .05), 0 12px 34px -16px rgba(30, 54, 110, .24);
 }
 
 .dark {
@@ -126,29 +132,32 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+    background: linear-gradient(180deg, #ffffff 0%, #e9f0ff 100%);
+    background-attachment: fixed;
   }
   html {
     @apply font-sans;
   }
 }
 
-/* ambient supermemory-style navy field */
+/* ambient white→blue field — soft blue/violet glows on the light ground */
 body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
   background:
-   radial-gradient(1200px 640px at 84% -12%, rgba(62,107,255,.20), transparent 60%),
-   radial-gradient(900px 560px at 6% 2%, rgba(62,107,255,.10), transparent 55%),
-   radial-gradient(760px 760px at 62% 118%, rgba(122,90,247,.08), transparent 60%);}
+   radial-gradient(1200px 700px at 82% -12%, rgba(43,107,255,.14), transparent 60%),
+   radial-gradient(1000px 620px at 3% 0%, rgba(43,107,255,.09), transparent 55%),
+   radial-gradient(880px 880px at 60% 116%, rgba(124,108,240,.08), transparent 60%);}
 
 .font-serif-em{font-family:var(--font-instrument),Georgia,serif;font-style:italic}
 .mono{font-family:var(--font-geist-mono),ui-monospace,monospace;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 .eyebrow{font-family:var(--font-geist-mono),monospace;font-size:10.5px;font-weight:500;letter-spacing:.22em;text-transform:uppercase;color:var(--muted-foreground)}
-.glass{background:color-mix(in oklch, var(--card) 78%, transparent);backdrop-filter:blur(12px)}
+/* frosted white cards that float above the gradient */
+.glass{background:color-mix(in oklch, var(--card) 86%, transparent);backdrop-filter:blur(14px) saturate(1.15);box-shadow:var(--shadow-card)}
 
-/* React Flow theme (dark navy) */
+/* React Flow theme */
 .react-flow__attribution{display:none}
-.react-flow__background{opacity:.5}
-.react-flow__edge-path{stroke:var(--brand);stroke-opacity:.35}
+.react-flow__background{opacity:.6}
+.react-flow__edge-path{stroke:var(--brand);stroke-opacity:.3}
 .react-flow__edge.animated .react-flow__edge-path{stroke-dasharray:6 6;animation:dash 1s linear infinite}
 .react-flow__edge.live .react-flow__edge-path{stroke:var(--brand2);stroke-opacity:.9;stroke-width:2.4}
 @keyframes dash{to{stroke-dashoffset:-24}}

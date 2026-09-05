@@ -15,10 +15,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`dark ${geistSans.variable} ${geistMono.variable} ${instrument.variable} h-full antialiased`}>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${instrument.variable} h-full antialiased`}>
       <body className="min-h-full">
         {children}
-        <Toaster position="top-right" theme="dark" />
+        <Toaster position="top-right" theme="light" />
       </body>
     </html>
   );

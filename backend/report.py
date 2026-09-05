@@ -14,14 +14,30 @@ from typing import Any
 from .ledger import get_run
 
 
-def _claim(headline: str, decision: str, uplift: float | None, reason: str) -> str:
-    subject = headline.replace("Show cards first for ", "Cards-first · ").strip() or headline
-    pp = round((uplift or 0) * 100, 1)
+def _segment(slice_json: str) -> str:
+    """Turn a slice into a plain phrase: 'returning mobile shoppers'."""
+    try:
+        s = json.loads(slice_json or "{}")
+    except Exception:
+        return "this group of shoppers"
+    seg = f"{s.get('customer_type', '')} {s.get('device', '')} shoppers".strip()
+    return seg or "this group of shoppers"
+
+
+def humanize(test_kind: str, slice_json: str, decision: str, uplift: float | None) -> tuple[str, str]:
+    """A plain-English learning + a verdict tag ('win' / 'harm' / 'wash') for colour.
+    Written so a non-analyst reads it as a sentence, not a stat line."""
+    seg = _segment(slice_json)
+    pts = abs(round((uplift or 0) * 100))
+    if test_kind == "retry_timing":
+        change, metric = "waiting longer before retrying a failed charge", "payment recovery"
+    else:
+        change, metric = "showing cards before UPI", "checkout completion"
     if decision == "FOUND_WINNER":
-        return f"WINS +{pp}pp · {subject} — kept {reason}"
+        return (f"For {seg}, {change} lifted {metric} by about {pts} points — so we kept it on.", "win")
     if decision == "FOUND_HARMFUL":
-        return f"HURT {pp}pp · {subject} — reverted, won't repeat"
-    return f"wash · {subject} — no measurable lift {reason}"
+        return (f"For {seg}, {change} pushed {metric} down by about {pts} points — so we reverted it and won't try it again.", "harm")
+    return (f"For {seg}, {change} made no real difference either way — so we left the setting as it was.", "wash")
 
 
 def build_report(conn: sqlite3.Connection, run_pk: int) -> dict[str, Any] | None:
@@ -35,7 +51,9 @@ def build_report(conn: sqlite3.Connection, run_pk: int) -> dict[str, Any] | None
     for t in tests:
         if t["status"] in ("FOUND_WINNER", "FOUND_HARMFUL", "NO_DIFFERENCE"):
             d = dec.get(t["id"], {})
-            learnings.append(_claim(t["headline"], d.get("decision", t["status"]), d.get("uplift"), d.get("reason", "")))
+            claim, verdict = humanize(t.get("test_kind", ""), t.get("slice_json", ""),
+                                      d.get("decision", t["status"]), d.get("uplift"))
+            learnings.append({"claim": claim, "verdict": verdict})
         elif t["status"] == "BLOCKED":
             blocked.append(t.get("rules_reason") or t["headline"])
 
@@ -44,12 +62,12 @@ def build_report(conn: sqlite3.Connection, run_pk: int) -> dict[str, Any] | None
     return {"run": run, "levers": levers, "learnings": learnings, "blocked": blocked, "markdown": md}
 
 
-def _markdown(run: dict[str, Any], levers: dict[str, Any], learnings: list[str], blocked: list[str]) -> str:
+def _markdown(run: dict[str, Any], levers: dict[str, Any], learnings: list[dict], blocked: list[str]) -> str:
     mode = "live · Gemini" if run.get("live") else "curated"
     days = round((run.get("sim_seconds") or 0) / 86400, 1)
     loss = f"₹{int(run.get('total_loss_inr') or 0):,}"
-    verdict = (f"{run['n_tests']} tests · {run['n_winners']} kept · {run['n_harmful']} braked "
-               f"({loss} exposed) · {run['n_wash']} wash · {run['n_blocked']} blocked · "
+    verdict = (f"{run['n_tests']} experiments · {run['n_winners']} kept · {run['n_harmful']} stopped by the brake "
+               f"({loss} at risk) · {run['n_wash']} no change · {run['n_blocked']} blocked · "
                f"{run['cap_broken']} cap breaches")
     lev = " · ".join(f"{k} {v}" for k, v in levers.items())
     lines = [
@@ -63,7 +81,7 @@ def _markdown(run: dict[str, Any], levers: dict[str, Any], learnings: list[str],
         lev or "(defaults)",
         "",
         "## What the agent learned",
-        *([f"- {c}" for c in learnings] or ["- (nothing concluded)"]),
+        *([f"- {c['claim']}" for c in learnings] or ["- (nothing concluded yet)"]),
     ]
     if blocked:
         lines += ["", "## Refused before any spend", *[f"- {b}" for b in blocked]]

@@ -48,7 +48,7 @@ function Checkout({ order, amount, rate, state, tag, tagTone }: {
   order: string[]; amount: number; rate?: number; state: "idle" | "success" | "reverted"; tag: string; tagTone: string;
 }) {
   return (
-    <div className="relative w-full overflow-hidden rounded-2xl border border-black/5 bg-white text-[#1a1f36] shadow-xl">
+    <div className="relative w-full overflow-hidden rounded-2xl border border-black/[0.07] bg-white text-[#1a1f36] shadow-[0_22px_60px_-24px_rgba(20,40,90,0.45)]">
       {/* header */}
       <div className="flex items-center justify-between bg-[#0d1836] px-4 py-3 text-white">
         <div>
@@ -143,7 +143,7 @@ function RetryCard({ schedule, note, rate, state, tag, tagTone, amount }: {
   schedule: string[]; note: string; rate?: number; state: "idle" | "success" | "reverted"; tag: string; tagTone: string; amount: number;
 }) {
   return (
-    <div className="relative w-full overflow-hidden rounded-2xl border border-black/5 bg-white text-[#1a1f36] shadow-xl">
+    <div className="relative w-full overflow-hidden rounded-2xl border border-black/[0.07] bg-white text-[#1a1f36] shadow-[0_22px_60px_-24px_rgba(20,40,90,0.45)]">
       <div className="flex items-center justify-between bg-[#0d1836] px-4 py-3 text-white">
         <div>
           <div className="text-[13px] font-semibold">Acme Electronics</div>
